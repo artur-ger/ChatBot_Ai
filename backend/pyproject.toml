@@ -1,0 +1,81 @@
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "chatbot-ai-backend"
+version = "0.1.0"
+description = "RAG chat backend MVP"
+authors = ["ChatBot AI Team <team@example.com>"]
+readme = "README.md"
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+fastapi = ">=0.115.0"
+starlette = ">=0.37.2,<0.39.0"
+uvicorn = ">=0.30.0"
+python-multipart = ">=0.0.9"
+pydantic = ">=2.8.0"
+pydantic-settings = ">=2.3.0"
+sqlalchemy = ">=2.0.36"
+asyncpg = ">=0.29.0"
+psycopg = {version = ">=3.2.0", extras = ["binary"]}
+alembic = ">=1.13.2"
+celery = ">=5.4.0"
+redis = ">=5.0.0"
+chromadb = ">=0.5.0"
+sentence-transformers = ">=3.0.0"
+numpy = ">=1.26.0"
+pypdf = ">=5.1.0"
+python-docx = ">=1.1.2"
+aiofiles = ">=24.1.0"
+slowapi = ">=0.1.9"
+prometheus-fastapi-instrumentator = ">=7.0.0"
+opentelemetry-sdk = ">=1.27.0"
+opentelemetry-instrumentation-fastapi = ">=0.48b0"
+opentelemetry-exporter-otlp = ">=1.27.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.2.0"
+pytest-asyncio = ">=0.23.0"
+httpx = ">=0.27.0"
+aiosqlite = ">=0.20.0"
+ruff = ">=0.8.0"
+black = ">=24.10.0"
+mypy = ">=1.13.0"
+pytest-cov = ">=6.0.0"
+types-aiofiles = ">=24.1.0.20240626"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+no_implicit_optional = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+  "celery.*",
+  "chromadb.*",
+  "sentence_transformers.*",
+  "prometheus_fastapi_instrumentator.*",
+  "opentelemetry.*",
+]
+ignore_missing_imports = true

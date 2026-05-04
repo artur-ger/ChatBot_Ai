@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Poetry
+        run: pip install poetry==2.2.1
+      - name: Install dependencies
+        run: poetry install --with dev
+      - name: Ruff
+        run: poetry run ruff check .
+      - name: Black (check)
+        run: poetry run black --check .
+      - name: Mypy
+        run: poetry run mypy app
+      - name: Tests + coverage
+        env:
+          CELERY_BROKER_URL: memory://
+          CELERY_RESULT_BACKEND: cache+memory://
+          CELERY_TASK_ALWAYS_EAGER: "true"
+          CHROMA_HOST: ""
+          USE_FAKE_EMBEDDINGS: "true"
+        run: poetry run pytest --cov=app --cov-report=term-missing --cov-fail-under=70 -q

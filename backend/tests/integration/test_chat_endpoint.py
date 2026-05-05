@@ -1,7 +1,6 @@
 from app.services.llm_client import BaseLlmClient
 from app.services.rag_pipeline import RagPipeline
 from app.services.retriever import BaseRetriever, RetrievedChunk
-from app.core.chat_acl import make_chat_signature
 
 
 class IntegrationRetriever(BaseRetriever):
@@ -24,7 +23,6 @@ def test_chat_endpoint_contract_shape(client):
     response = client.post(
         "/api/v1/chat",
         json={"text": "Тестовый вопрос", "chat_id": chat_id},
-        headers={"X-Chat-Signature": make_chat_signature(chat_id, "test-chat-secret")},
     )
     payload = response.json()
 

@@ -1,8 +1,9 @@
 import logging
 import time
+from datetime import datetime
 from typing import cast
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +13,14 @@ from app.core.errors import AppError
 from app.core.limiter import limiter
 from app.db.session import get_db_session
 from app.repositories.chat_repository import ChatRecord, ChatRepository
-from app.schemas.chat import ChatRequest, ChatResponse, ErrorResponse
+from app.schemas.chat import (
+    ChatHistoryItem,
+    ChatHistoryResponse,
+    ChatRequest,
+    ChatResetResponse,
+    ChatResponse,
+    ErrorResponse,
+)
 from app.services.rag_pipeline import RagPipeline
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -37,7 +45,8 @@ async def chat(
     db_session: AsyncSession = Depends(get_db_session),
 ) -> ChatResponse | JSONResponse:
     try:
-        verify_chat_access(chat_id=payload.chat_id, provided_signature=x_chat_signature)
+        if not settings.chat_acl_disabled:
+            verify_chat_access(chat_id=payload.chat_id, provided_signature=x_chat_signature)
         repository = ChatRepository(db_session)
         history_rows = await repository.list_recent_messages(
             payload.chat_id,
@@ -82,3 +91,69 @@ async def chat(
                 retry_allowed=exc.retry_allowed,
             ).model_dump(),
         )
+
+
+@router.get(
+    "/{chat_id}/history",
+    response_model=ChatHistoryResponse,
+    responses={400: {"model": ErrorResponse}},
+)
+@limiter.limit(settings.rate_limit_default)
+async def chat_history(
+    request: Request,
+    chat_id: str,
+    limit: int = Query(default=20, ge=1, le=100),
+    cursor: str | None = Query(default=None),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> ChatHistoryResponse | JSONResponse:
+    cursor_created_at: datetime | None = None
+    cursor_id: int | None = None
+    if cursor:
+        try:
+            created_at_raw, id_raw = cursor.rsplit("|", 1)
+            cursor_created_at = datetime.fromisoformat(created_at_raw)
+            cursor_id = int(id_raw)
+        except Exception:
+            return JSONResponse(
+                status_code=400,
+                content=ErrorResponse(
+                    error_code="validation_error",
+                    message="Invalid cursor format",
+                    retry_allowed=False,
+                ).model_dump(),
+            )
+    repository = ChatRepository(db_session)
+    rows, next_created_at, next_id = await repository.list_history_page(
+        chat_id=chat_id,
+        limit=limit,
+        cursor_created_at=cursor_created_at,
+        cursor_id=cursor_id,
+    )
+    items = [
+        ChatHistoryItem(
+            id=row.id,
+            question=row.question,
+            answer=row.answer,
+            confidence=row.confidence,
+            created_at=row.created_at.isoformat(),
+        )
+        for row in rows
+    ]
+    next_cursor = f"{next_created_at}|{next_id}" if next_created_at and next_id is not None else None
+    return ChatHistoryResponse(chat_id=chat_id, items=items, next_cursor=next_cursor)
+
+
+@router.post(
+    "/{chat_id}/reset",
+    response_model=ChatResetResponse,
+    responses={400: {"model": ErrorResponse}},
+)
+@limiter.limit(settings.rate_limit_default)
+async def reset_chat(
+    request: Request,
+    chat_id: str,
+    db_session: AsyncSession = Depends(get_db_session),
+) -> ChatResetResponse:
+    repository = ChatRepository(db_session)
+    deleted_messages = await repository.reset_chat(chat_id)
+    return ChatResetResponse(chat_id=chat_id, deleted_messages=deleted_messages)

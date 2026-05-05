@@ -2,31 +2,43 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Coroutine
-from concurrent.futures import Future
+from concurrent.futures import Future as ThreadFuture
 from threading import Thread
 from typing import TypeVar
 
 T = TypeVar("T")
 
 
+class _AsyncLoopRunner:
+    """Single background event loop for sync Celery tasks."""
+
+    def __init__(self) -> None:
+        self._ready: ThreadFuture[asyncio.AbstractEventLoop] = ThreadFuture()
+        self._thread = Thread(target=self._bootstrap, name="celery-async-loop", daemon=True)
+        self._thread.start()
+        self._loop = self._ready.result()
+
+    def _bootstrap(self) -> None:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self._ready.set_result(loop)
+        loop.run_forever()
+
+    def run(self, coro: Coroutine[object, object, T]) -> T:
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
+
+
+_RUNNER: _AsyncLoopRunner | None = None
+
+
 def run_async(coro: Coroutine[object, object, T]) -> T:
     """
-    Celery tasks are synchronous, but our DB layer is async.
+    Celery tasks are synchronous, while DB/services are async.
 
-    When Celery runs eagerly inside an ASGI request, there is already a running event loop in the
-    current thread, so we execute the coroutine in a dedicated thread with its own loop via
-    `asyncio.run`.
+    Use one dedicated background event loop per process, so async drivers (e.g. asyncpg pool)
+    stay bound to a stable loop and don't fail with "Future attached to a different loop".
     """
-
-    result: Future[T] = Future()
-
-    def _runner() -> None:
-        try:
-            result.set_result(asyncio.run(coro))
-        except BaseException as exc:  # noqa: BLE001
-            result.set_exception(exc)
-
-    thread = Thread(target=_runner, name="async-celery-runner", daemon=True)
-    thread.start()
-    thread.join()
-    return result.result()
+    global _RUNNER
+    if _RUNNER is None:
+        _RUNNER = _AsyncLoopRunner()
+    return _RUNNER.run(coro)

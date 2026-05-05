@@ -6,3 +6,9 @@ artifact/
 
 # Локальная копия ТЗ
 /TZ.txt
+
+# Локальные БД и данные
+backend/chatbot.db
+backend/data/
+backend/.env
+.env

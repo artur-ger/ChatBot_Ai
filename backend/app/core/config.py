@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     chat_history_max_messages: int = Field(default=12)
     chat_history_max_chars: int = Field(default=6000)
     chat_acl_secret: str = Field(default="local-dev-chat-secret")
+    # When True, X-Chat-Signature is not required (local/dev only; set False in production).
+    chat_acl_disabled: bool = Field(default=False)
 
     rate_limit_default: str = Field(default="60/minute")
     rate_limit_chat: str = Field(default="30/minute")

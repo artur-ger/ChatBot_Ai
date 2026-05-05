@@ -4,7 +4,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     POETRY_VERSION=2.2.1 \
     POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false
+    POETRY_VIRTUALENVS_CREATE=false \
+    PIP_DEFAULT_TIMEOUT=300 \
+    PIP_RETRIES=15 \
+    POETRY_HTTP_TIMEOUT=600
 
 WORKDIR /app
 
@@ -14,8 +17,7 @@ RUN apt-get update \
 
 RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
-COPY pyproject.toml README.md /app/
-RUN poetry lock
+COPY pyproject.toml poetry.lock README.md /app/
 RUN poetry install --no-root --with dev
 
 COPY app /app/app

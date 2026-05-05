@@ -1,7 +1,6 @@
 from app.services.llm_client import BaseLlmClient, RuleBasedLlmClient
 from app.services.rag_pipeline import RagPipeline
 from app.services.retriever import BaseRetriever, RetrievedChunk
-from app.core.chat_acl import make_chat_signature
 
 
 class SmokeRetriever(BaseRetriever):
@@ -28,7 +27,6 @@ def test_smoke_successful_chat_flow(client):
     response = client.post(
         "/api/v1/chat",
         json={"text": "Какие часы работы поддержки?", "chat_id": chat_id},
-        headers={"X-Chat-Signature": make_chat_signature(chat_id, "test-chat-secret")},
     )
     data = response.json()
 
@@ -48,7 +46,6 @@ def test_smoke_degradation_when_llm_down(client):
     response = client.post(
         "/api/v1/chat",
         json={"text": "trigger_llm_down", "chat_id": chat_id},
-        headers={"X-Chat-Signature": make_chat_signature(chat_id, "test-chat-secret")},
     )
     data = response.json()
 

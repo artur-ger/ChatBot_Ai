@@ -1,7 +1,8 @@
 import logging
 import uuid
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,8 +15,14 @@ from app.models.indexing_task import IndexingTask
 from app.models.webhook_subscription import WebhookSubscription
 from app.repositories.ingestion_repository import IngestionRepository
 from app.schemas.chat import ErrorResponse
-from app.schemas.ingestion import DocumentStatusResponse, IngestAcceptedResponse
+from app.schemas.ingestion import (
+    DocumentListItem,
+    DocumentListResponse,
+    DocumentStatusResponse,
+    IngestAcceptedResponse,
+)
 from app.services.ingestion_service import save_upload_to_temp
+from app.integrations.chroma_store import ChromaVectorStore
 from app.workers.tasks_indexing import index_document
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -136,3 +143,98 @@ async def get_document_status(
         status=document.status,
         error_message=document.error_message,
     )
+
+
+@router.get(
+    "",
+    response_model=DocumentListResponse,
+    responses={400: {"model": ErrorResponse}},
+)
+@limiter.limit(settings.rate_limit_default)
+async def list_documents(
+    request: Request,
+    status: str | None = Query(default=None),
+    doc_type: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    cursor: str | None = Query(default=None),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> DocumentListResponse | JSONResponse:
+    cursor_created_at: datetime | None = None
+    cursor_id: str | None = None
+    if cursor:
+        try:
+            created_at_raw, cursor_id = cursor.rsplit("|", 1)
+            cursor_created_at = datetime.fromisoformat(created_at_raw)
+        except Exception:
+            return JSONResponse(
+                status_code=400,
+                content=ErrorResponse(
+                    error_code="validation_error",
+                    message="Invalid cursor format",
+                    retry_allowed=False,
+                ).model_dump(),
+            )
+    repository = IngestionRepository(db_session)
+    docs, next_created_at, next_id = await repository.list_documents_page(
+        status=status,
+        doc_type=doc_type,
+        limit=limit,
+        cursor_created_at=cursor_created_at,
+        cursor_id=cursor_id,
+    )
+    items = [
+        DocumentListItem(
+            document_id=doc.id,
+            original_filename=doc.original_filename,
+            doc_type=doc.doc_type,
+            status=doc.status,
+            created_at=doc.created_at.isoformat(),
+            embedding_model_version=doc.embedding_model_version,
+        )
+        for doc in docs
+    ]
+    next_cursor = f"{next_created_at}|{next_id}" if next_created_at and next_id else None
+    return DocumentListResponse(items=items, next_cursor=next_cursor)
+
+
+@router.delete(
+    "/{document_id}",
+    responses={404: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
+@limiter.limit(settings.rate_limit_default)
+async def delete_document(
+    request: Request,
+    document_id: str,
+    db_session: AsyncSession = Depends(get_db_session),
+) -> object:
+    repository = IngestionRepository(db_session)
+    document = await repository.get_document(document_id)
+    if document is None:
+        return JSONResponse(
+            status_code=404,
+            content=ErrorResponse(
+                error_code="not_found",
+                message="Document not found",
+                retry_allowed=False,
+            ).model_dump(),
+        )
+    try:
+        vector_store = ChromaVectorStore(
+            host=settings.chroma_host,
+            port=settings.chroma_port,
+            persist_path=settings.chroma_persist_path,
+            collection_name=f"kb_{document.embedding_model_version}",
+        )
+        vector_store.delete_document_chunks(document_id)
+        await repository.delete_document(document_id)
+        return Response(status_code=204)
+    except Exception as exc:
+        logger.exception("Failed to delete document atomically: %s", str(exc))
+        return JSONResponse(
+            status_code=503,
+            content=ErrorResponse(
+                error_code="dependency_unavailable",
+                message="Failed to delete document",
+                retry_allowed=True,
+            ).model_dump(),
+        )

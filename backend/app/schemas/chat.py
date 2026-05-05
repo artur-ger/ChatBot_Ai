@@ -24,3 +24,22 @@ class ErrorResponse(BaseModel):
     error_code: str
     message: str
     retry_allowed: bool
+
+
+class ChatHistoryItem(BaseModel):
+    id: int
+    question: str
+    answer: str
+    confidence: float
+    created_at: str
+
+
+class ChatHistoryResponse(BaseModel):
+    chat_id: str
+    items: list[ChatHistoryItem]
+    next_cursor: str | None = None
+
+
+class ChatResetResponse(BaseModel):
+    chat_id: str
+    deleted_messages: int

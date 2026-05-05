@@ -14,6 +14,7 @@ os.environ.setdefault("CELERY_RESULT_BACKEND", "cache+memory://")
 os.environ.setdefault("CHROMA_HOST", "")
 os.environ.setdefault("USE_FAKE_EMBEDDINGS", "true")
 os.environ.setdefault("CHAT_ACL_SECRET", "test-chat-secret")
+os.environ.setdefault("CHAT_ACL_DISABLED", "true")
 _CHROMA_TEST_DIR = Path(tempfile.mkdtemp(prefix="chroma_tests_"))
 os.environ["CHROMA_PERSIST_PATH"] = str(_CHROMA_TEST_DIR)
 

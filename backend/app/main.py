@@ -17,6 +17,7 @@ from app.api.admin import router as admin_router
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
 from app.api.indexing_tasks import router as indexing_tasks_router
+from app.api.system import router as system_router
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.session import engine
@@ -82,6 +83,7 @@ app.include_router(chat_router, prefix=settings.api_prefix)
 app.include_router(documents_router, prefix=settings.api_prefix)
 app.include_router(indexing_tasks_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
+app.include_router(system_router)
 
 Instrumentator().instrument(app).expose(app, include_in_schema=True)
 

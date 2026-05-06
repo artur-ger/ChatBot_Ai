@@ -3,11 +3,11 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import cast
 
-from sentence_transformers import SentenceTransformer
-
-
 @lru_cache(maxsize=1)
-def _load_model(model_name: str) -> SentenceTransformer:
+def _load_model(model_name: str):
+    # Lazy import so local runs with fake embeddings do not require heavy ML deps.
+    from sentence_transformers import SentenceTransformer
+
     return cast(SentenceTransformer, SentenceTransformer(model_name))
 
 

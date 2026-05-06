@@ -7,10 +7,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
 from app.api.admin import router as admin_router
@@ -78,6 +80,7 @@ async def rate_limit_exception_handler(request: Request, exc: Exception) -> Resp
 
 app.add_exception_handler(RateLimitExceeded, rate_limit_exception_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.include_router(chat_router, prefix=settings.api_prefix)
 app.include_router(documents_router, prefix=settings.api_prefix)
@@ -86,6 +89,11 @@ app.include_router(admin_router, prefix=settings.api_prefix)
 app.include_router(system_router)
 
 Instrumentator().instrument(app).expose(app, include_in_schema=True)
+
+
+@app.get("/", include_in_schema=False)
+async def frontend_index() -> FileResponse:
+    return FileResponse("app/static/index.html")
 
 if settings.otel_exporter_otlp_endpoint:
     from opentelemetry import trace

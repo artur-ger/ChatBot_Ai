@@ -52,7 +52,7 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     volumes:
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/app/data/huggingface
       - uploads_data:/app/data/uploads
     depends_on:
       postgres:
@@ -71,7 +71,7 @@ services:
       - CHROMA_HOST=chroma
       - CHROMA_PORT=8000
       - CHAT_ACL_DISABLED=true
-      - HF_HOME=/root/.cache/huggingface
+      - HF_HOME=/app/data/huggingface
       # Токен из .env рядом с compose (для gated-моделей). Пустое значение допустимо.
       - HF_TOKEN=${HF_TOKEN:-}
       # Переключатель без правки файла: в .env можно задать USE_FAKE_EMBEDDINGS=true
@@ -86,16 +86,9 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     volumes:
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/app/data/huggingface
       - uploads_data:/app/data/uploads
-    command: ["sh", "-c", "poetry run celery -A app.workers.celery_app worker -l INFO --uid=nobody --gid=nogroup"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      chroma:
-        condition: service_started
+    command: ["sh", "-c", "poetry run celery -A app.workers.celery_app worker -l INFO"]
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql+asyncpg://chatbot:chatbot@postgres:5432/chatbot_ai
@@ -104,7 +97,7 @@ services:
       - CHROMA_HOST=chroma
       - CHROMA_PORT=8000
       - CHAT_ACL_DISABLED=true
-      - HF_HOME=/root/.cache/huggingface
+      - HF_HOME=/app/data/huggingface
       - HF_TOKEN=${HF_TOKEN:-}
       - USE_FAKE_EMBEDDINGS=${USE_FAKE_EMBEDDINGS:-false}
 

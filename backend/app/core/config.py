@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     )
 
     upload_temp_dir: str = Field(default="./data/uploads")
-    max_upload_bytes: int = Field(default=10 * 1024 * 1024)
+    max_upload_bytes: int = Field(default=50 * 1024 * 1024)
     allowed_mime_types: tuple[str, ...] = Field(
         default=(
             "text/plain",
@@ -33,8 +33,10 @@ class Settings(BaseSettings):
     embedding_model_version: str = Field(default="all-MiniLM-L6-v2")
     use_fake_embeddings: bool = Field(default=False)
 
-    chunk_size: int = Field(default=900)
-    chunk_overlap: int = Field(default=120)
+    chunk_size: int = Field(default=400)
+    chunk_overlap: int = Field(default=60)
+    min_chunk_words: int = Field(default=20)
+    normalize_lowercase: bool = Field(default=False)
 
     retriever_top_k: int = 5
     min_chunk_score: float = 0.25
@@ -47,6 +49,7 @@ class Settings(BaseSettings):
     chat_acl_secret: str = Field(default="local-dev-chat-secret")
     # When True, X-Chat-Signature is not required (local/dev only; set False in production).
     chat_acl_disabled: bool = Field(default=False)
+    telegram_bot_token: str | None = Field(default=None)
 
     rate_limit_default: str = Field(default="60/minute")
     rate_limit_chat: str = Field(default="30/minute")

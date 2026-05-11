@@ -20,8 +20,8 @@ from app.models.document import Document
 from app.models.indexing_task import IndexingTask
 from app.models.webhook_subscription import WebhookSubscription
 from app.services.embedding_factory import get_embedding_service
-from app.services.text_chunking import chunk_text
-from app.services.text_extract import extract_text_from_file
+from app.services.text_chunking import chunk_segments
+from app.services.text_extract import extract_text_segments_from_file
 from app.workers.async_runner import run_async
 from app.workers.celery_app import celery_app
 
@@ -93,30 +93,36 @@ async def _index_document_async(document_id: str, task_id: str) -> None:
 
         try:
             path = Path(document.temp_path)
-            raw_text = extract_text_from_file(path=path, doc_type=document.doc_type)
-            chunks = chunk_text(
-                raw_text,
-                chunk_size=settings.chunk_size,
-                overlap=settings.chunk_overlap,
+            extracted_segments = extract_text_segments_from_file(path=path, doc_type=document.doc_type)
+            chunks = chunk_segments(
+                extracted_segments,
+                chunk_size_words=settings.chunk_size,
+                overlap_words=settings.chunk_overlap,
+                min_words=settings.min_chunk_words,
+                lowercase=settings.normalize_lowercase,
             )
             if not chunks:
-                raise ValueError("No text extracted from document")
+                raise ValueError("No text chunks extracted from document")
 
-            embeddings = embedding_service.encode(chunks)
+            embeddings = embedding_service.encode([chunk.text for chunk in chunks])
             now = _utcnow()
 
             upsert_items: list[ChromaUpsertItem] = []
-            for idx, (chunk, vector) in enumerate(zip(chunks, embeddings, strict=True)):
+            for chunk, vector in zip(chunks, embeddings, strict=True):
                 upsert_items.append(
                     ChromaUpsertItem(
-                        chunk_id=f"{idx:05d}",
+                        chunk_id=f"{chunk.chunk_index:05d}",
                         doc_id=document.id,
-                        text=chunk,
+                        text=chunk.text,
                         embedding=vector,
                         doc_type=document.doc_type,
                         doc_status="indexed",
                         created_at=now,
                         embedding_model_version=settings.embedding_model_version,
+                        chunk_index=chunk.chunk_index,
+                        page_number=chunk.page_number,
+                        filename=document.original_filename,
+                        word_count=chunk.word_count,
                     )
                 )
 

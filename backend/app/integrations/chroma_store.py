@@ -18,6 +18,10 @@ class ChromaUpsertItem:
     doc_status: str
     created_at: datetime
     embedding_model_version: str
+    chunk_index: int
+    filename: str
+    word_count: int
+    page_number: int | None = None
 
 
 class ChromaVectorStore:
@@ -45,15 +49,19 @@ class ChromaVectorStore:
             ids.append(f"{item.doc_id}:{item.chunk_id}")
             embeddings.append(item.embedding)
             documents.append(item.text)
-            metadatas.append(
-                {
-                    "doc_id": item.doc_id,
-                    "doc_type": item.doc_type,
-                    "doc_status": item.doc_status,
-                    "created_at": item.created_at.isoformat(),
-                    "embedding_model_version": item.embedding_model_version,
-                }
-            )
+            metadata: dict[str, Any] = {
+                "doc_id": item.doc_id,
+                "doc_type": item.doc_type,
+                "doc_status": item.doc_status,
+                "created_at": item.created_at.isoformat(),
+                "embedding_model_version": item.embedding_model_version,
+                "chunk_index": item.chunk_index,
+                "filename": item.filename,
+                "word_count": item.word_count,
+            }
+            if item.page_number is not None:
+                metadata["page_number"] = item.page_number
+            metadatas.append(metadata)
 
         self._collection.upsert(
             ids=ids,

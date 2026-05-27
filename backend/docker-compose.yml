@@ -30,7 +30,6 @@ services:
       retries: 10
 
   chroma:
-    # Образ должен совпадать по major/minor с пакетом chromadb в poetry.lock (сейчас ~1.5.x), иначе 404 на /api/v2/...
     image: ${CHROMA_IMAGE:-chromadb/chroma:1.5.8}
     pull_policy: missing
     container_name: chatbot-chroma
@@ -38,7 +37,6 @@ services:
       - "8001:8000"
     volumes:
       - chroma_data:/chroma/chroma
-    # Часто чинит резолвинг внешних хостов при VPN / «ломком» DNS Docker Desktop.
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -51,7 +49,6 @@ services:
       args:
         PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.12-slim}
     container_name: chatbot-backend
-    # .env лежит в корне репозитория (см. init-env.ps1), не в backend/
     env_file:
       - path: ../.env
         required: false

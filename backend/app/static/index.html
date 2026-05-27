@@ -22,18 +22,15 @@
           <div class="section-head">
             <h2>Чат</h2>
           </div>
-          <div class="row">
-            <label for="chatId">Chat ID</label>
-            <input id="chatId" type="text" value="demo-user" />
-          </div>
+          <p id="chatSessionHint" class="muted chat-session-hint"></p>
           <div id="messages" class="messages messages-tall"></div>
           <form id="chatForm" class="chat-form">
             <input id="chatInput" type="text" placeholder="Введите вопрос..." required minlength="2" />
             <button type="submit">Отправить</button>
           </form>
           <div class="actions">
-            <button id="loadHistoryBtn" type="button" class="btn-secondary">Загрузить историю</button>
-            <button id="resetChatBtn" type="button" class="danger">Сбросить чат</button>
+            <button id="newChatBtn" type="button" class="btn-secondary">Новый диалог</button>
+            <button id="resetChatBtn" type="button" class="danger">Очистить историю</button>
           </div>
         </section>
       </main>
@@ -42,6 +39,6 @@
     <div id="toast" class="toast hidden"></div>
 
     <script src="/static/common.js?v=20260526-rollout"></script>
-    <script src="/static/chat.js?v=20260526-sources"></script>
+    <script src="/static/chat.js?v=20260527-chat-session"></script>
   </body>
 </html>

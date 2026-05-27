@@ -1,7 +1,8 @@
 param(
     [switch]$WithTelegram,
     [switch]$SkipSmoke,
-    [switch]$SkipGoLive
+    [switch]$SkipGoLive,
+    [switch]$Prod
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,7 +10,7 @@ $BackendRoot = Split-Path -Parent $PSScriptRoot
 $RepoRoot = Split-Path -Parent $BackendRoot
 
 Set-Location $BackendRoot
-& (Join-Path $BackendRoot "scripts\init-env.ps1")
+& (Join-Path $BackendRoot "scripts\init-env.ps1") @PSBoundParameters
 
 Set-Location $RepoRoot
 
@@ -25,8 +26,26 @@ if ($WithTelegram) {
     docker compose --profile telegram up -d --build
 }
 
-Write-Host "Waiting for services (backend loads embedding model)..."
-Start-Sleep -Seconds 20
+Write-Host "Waiting for backend health..."
+$healthy = $false
+for ($i = 1; $i -le 60; $i++) {
+    try {
+        $h = Invoke-RestMethod -Uri "http://localhost:8000/healthz" -TimeoutSec 5
+        if ($h.status -eq "ok") {
+            $r = Invoke-RestMethod -Uri "http://localhost:8000/readyz" -TimeoutSec 5
+            if ($r.status -eq "ready") {
+                $healthy = $true
+                break
+            }
+        }
+    } catch {
+        # retry
+    }
+    Start-Sleep -Seconds 3
+}
+if (-not $healthy) {
+    Write-Warning "Backend not ready. Check: docker logs chatbot-backend"
+}
 
 function Read-EnvValue {
     param([string]$Key)

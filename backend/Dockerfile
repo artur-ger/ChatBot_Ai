@@ -12,10 +12,30 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY certs/russian_trusted_root_ca_pem.crt certs/russian_trusted_sub_ca_pem.crt \
+    /usr/local/share/ca-certificates/
+RUN chmod 644 /usr/local/share/ca-certificates/russian_trusted_*.crt \
+    && update-ca-certificates
+
 RUN pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
 COPY pyproject.toml poetry.lock README.md /app/
 RUN poetry install --no-root --with dev
+
+COPY certs/russian_trusted_root_ca_pem.crt certs/russian_trusted_sub_ca_pem.crt /app/certs/
+COPY scripts/build_ca_bundle.py /tmp/build_ca_bundle.py
+RUN poetry run python /tmp/build_ca_bundle.py \
+        --output /app/certs/ca-bundle.crt \
+        /app/certs/russian_trusted_root_ca_pem.crt \
+        /app/certs/russian_trusted_sub_ca_pem.crt \
+    && rm /tmp/build_ca_bundle.py
+
+ENV SSL_CERT_FILE=/app/certs/ca-bundle.crt \
+    REQUESTS_CA_BUNDLE=/app/certs/ca-bundle.crt
 
 COPY app /app/app
 COPY tests /app/tests

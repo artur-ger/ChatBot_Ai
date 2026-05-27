@@ -1,6 +1,4 @@
-# Единая точка входа из корня репозитория: `docker compose up --build`
-# Compose читает переменные из .env в корне (см. .env.example).
-# Реальное описание сервисов — в backend/docker-compose.yml.
+# Запуск: docker compose up --build (сервисы в backend/docker-compose.yml)
 name: backend
 
 include:

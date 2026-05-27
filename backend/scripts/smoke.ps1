@@ -44,7 +44,10 @@ $ui = Invoke-RestMethod -Uri "$BaseUrl/system/ui-config" -Method Get
 Write-Host "[OK] ui-config show_admin_link=$($ui.show_admin_link) chat_acl_required=$($ui.chat_acl_required)"
 
 $info = Invoke-RestMethod -Uri "$BaseUrl/system/info" -Method Get
-Write-Host "[OK] system/info llm_configured=$($info.llm_configured) integrations=$($info.llm_integrations_count)"
+Write-Host "[OK] system/info llm_configured=$($info.llm_configured) integrations=$($info.llm_integrations_count) active=$($info.active_llm_provider)/$($info.active_llm_model)"
+if ($info.active_llm_provider -eq "rule_based") {
+    throw "активна rule_based"
+}
 
 $chatBody = @{
     chat_id = "smoke-user"

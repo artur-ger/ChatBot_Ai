@@ -391,6 +391,7 @@ async def main() -> None:
 
         finally:
             await bot.session.close()
+            router.parent_router = None
 
 
 if __name__ == "__main__":

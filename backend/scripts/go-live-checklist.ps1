@@ -59,10 +59,9 @@ Check "active LLM integration" {
         throw "no active LLM integration"
     }
     if ($r.active_llm_provider -eq "rule_based") {
-        Write-Host "       warning: rule_based stub active - set openai_compatible before real prod"
-    } else {
-        Write-Host "       active: $($r.active_llm_provider) / $($r.active_llm_model)"
+        throw "активна rule_based; активируйте LLM в /admin"
     }
+    Write-Host "       active: $($r.active_llm_provider) / $($r.active_llm_model)"
 }
 
 Check "indexed documents exist" {
@@ -82,6 +81,33 @@ Check "chat responds" {
     $body = '{"chat_id":"go-live","text":"test"}'
     $r = Invoke-RestMethod -Uri "$BaseUrl/api/v1/chat" -Method Post -ContentType "application/json" -Body $body
     if (-not $r.text) { throw "empty answer" }
+}
+
+Check "FAQ restore access sources" {
+    $body = [Convert]::FromBase64String("eyJjaGF0X2lkIjogImdvLWxpdmUtZmFxIiwgInRleHQiOiAi0LrQsNC6INCy0L7RgdGB0YLQsNC90L7QstC40YLRjCDQtNC+0YHRgtGD0L8/In0=")
+    $r = Invoke-RestMethod -Uri "$BaseUrl/api/v1/chat" -Method Post -ContentType "application/json; charset=utf-8" -Body $body
+    $ids = @($r.sources | ForEach-Object { $_.doc_id })
+    if ($ids -notcontains "instructions.access_to_personal_account") {
+        throw "expected instructions.access_to_personal_account in sources, got: $($ids -join ', ')"
+    }
+    Write-Host "       sources: $($ids -join ', ')"
+}
+
+Check "FAQ topup account sources" {
+    $body = [Convert]::FromBase64String("eyJjaGF0X2lkIjogImdvLWxpdmUtZmFxIiwgInRleHQiOiAi0LrQsNC6INC/0L7Qv9C+0LvQvdC40YLRjCDRgdGH0LXRgj8ifQ==")
+    $r = Invoke-RestMethod -Uri "$BaseUrl/api/v1/chat" -Method Post -ContentType "application/json; charset=utf-8" -Body $body
+    $ids = @($r.sources | ForEach-Object { $_.doc_id })
+    if ($ids -notcontains "instructions.account") {
+        throw "expected instructions.account in sources, got: $($ids -join ', ')"
+    }
+    Write-Host "       sources: $($ids -join ', ')"
+}
+
+Check "public UI hides admin link" {
+    $ui = Invoke-RestMethod -Uri "$BaseUrl/system/ui-config"
+    if ($ui.show_admin_link) {
+        throw "show_admin_link=true - set PUBLIC_SHOW_ADMIN_LINK=false for prod"
+    }
 }
 
 Check "admin UI reachable" {

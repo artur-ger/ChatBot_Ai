@@ -11,4 +11,5 @@ artifact/
 backend/chatbot.db
 backend/data/
 backend/.env
+backend/backups/
 .env

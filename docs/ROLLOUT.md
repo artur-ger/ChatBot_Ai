@@ -100,7 +100,7 @@ Compose читает `.env` из корня через `env_file: ../.env` в `b
 
 
 
-> После пересборки backend **30–60 сек** грузит embedding-модель — дождитесь `healthz`.
+> Холодный старт backend: дождаться `healthz` (до ~2 мин).
 
 
 
@@ -114,7 +114,7 @@ Compose читает `.env` из корня через `env_file: ../.env` в `b
 
 3. Загрузить `kb.zip` или документы PDF/DOCX/TXT
 
-4. Статусы обновляются автоматически (или кнопка «Обновить») — дождаться `indexed`
+4. Wait until status `indexed`
 
 
 
@@ -126,11 +126,11 @@ Compose читает `.env` из корня через `env_file: ../.env` в `b
 
 2. Указать model, base URL, API key
 
-3. **Activate** + **Test**
+3. Активировать интеграцию + Test
 
-4. При необходимости отредактировать **Промпт RAG**
+4. В шапке админки — активный провайдер (не `rule_based`)
 
-5. В prod: `LLM_ALLOW_RULE_BASED_FALLBACK=false`
+5. Перед деплоем: `init-env.ps1 -Prod`
 
 
 
@@ -210,21 +210,16 @@ cd c:\ChatBot_Ai\backend
 
 ## 9. Чеклист «готово к людям»
 
+См. актуальный статус: [docs/PROD_STATUS.md](PROD_STATUS.md)
 
-
-- [ ] Документы `indexed`
-
-- [ ] Активная LLM, fallback выключен
-
+- [ ] Документы `indexed` — `go-live-checklist.ps1`
+- [ ] Активная LLM (не `rule_based`), fallback выключен (`init-env.ps1 -Prod`)
+- [ ] FAQ: восстановление доступа / пополнение — в go-live
 - [ ] Промпт RAG настроен
-
-- [ ] Сайт и Telegram отвечают по KB
-
+- [ ] Сайт отвечает по KB
+- [ ] Telegram (если нужен): `TELEGRAM_BOT_TOKEN` + доступ к `api.telegram.org`
 - [ ] Upload API закрыт без admin auth
-
-- [ ] Ссылка на админку скрыта на `/` (`PUBLIC_SHOW_ADMIN_LINK=false`)
-
+- [ ] Ссылка на админку скрыта (`PUBLIC_SHOW_ADMIN_LINK=false`)
 - [ ] Секреты не в git
-
-- [ ] `CHAT_ACL_DISABLED=true` для веб-чата (или фронт шлёт `X-Chat-Signature`)
+- [ ] Бэкап: `.\scripts\backup.ps1`
 

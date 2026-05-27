@@ -1,10 +1,44 @@
-const chatIdInput = document.getElementById("chatId");
+const CHAT_SESSION_STORAGE_KEY = "chatbot_ai_chat_id";
+
 const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
 const messages = document.getElementById("messages");
-const loadHistoryBtn = document.getElementById("loadHistoryBtn");
+const newChatBtn = document.getElementById("newChatBtn");
 const resetChatBtn = document.getElementById("resetChatBtn");
+const chatSessionHint = document.getElementById("chatSessionHint");
 const toast = document.getElementById("toast");
+
+function createChatSessionId() {
+  const uuid =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  return `web-${uuid}`;
+}
+
+function getOrCreateChatId() {
+  let id = localStorage.getItem(CHAT_SESSION_STORAGE_KEY);
+  if (!id || !id.trim()) {
+    id = createChatSessionId();
+    localStorage.setItem(CHAT_SESSION_STORAGE_KEY, id);
+  }
+  return id.trim();
+}
+
+function setChatSessionId(id) {
+  localStorage.setItem(CHAT_SESSION_STORAGE_KEY, id);
+  updateSessionHint(id);
+}
+
+function updateSessionHint(chatId) {
+  if (!chatSessionHint) return;
+  const short = chatId.length > 12 ? `${chatId.slice(0, 8)}…` : chatId;
+  chatSessionHint.textContent = `Сессия: ${short}`;
+}
+
+function getChatId() {
+  return getOrCreateChatId();
+}
 
 function appendMessage(role, text, sources = [], confidence = null) {
   const wrap = document.createElement("div");
@@ -28,8 +62,8 @@ function appendMessage(role, text, sources = [], confidence = null) {
 async function sendChatMessage(event) {
   event.preventDefault();
   const text = chatInput.value.trim();
-  const chatId = chatIdInput.value.trim();
-  if (!text || !chatId) {
+  const chatId = getChatId();
+  if (!text) {
     return;
   }
 
@@ -48,8 +82,7 @@ async function sendChatMessage(event) {
 }
 
 async function loadHistory() {
-  const chatId = chatIdInput.value.trim();
-  if (!chatId) return;
+  const chatId = getChatId();
   try {
     const data = await fetchJson(`${apiPrefix}/chat/${encodeURIComponent(chatId)}/history?limit=20`);
     messages.innerHTML = "";
@@ -57,16 +90,17 @@ async function loadHistory() {
       appendMessage("user", item.question);
       appendMessage("assistant", item.answer);
     });
-    showToast(toast, "История загружена");
+    if (data.items.length) {
+      showToast(toast, "История загружена");
+    }
   } catch (error) {
     showToast(toast, `Ошибка истории: ${error.message}`, true);
   }
 }
 
 async function resetChat() {
-  const chatId = chatIdInput.value.trim();
-  if (!chatId) return;
-  if (!confirm("Удалить историю текущего чата?")) return;
+  const chatId = getChatId();
+  if (!confirm("Удалить историю сообщений в этом диалоге?")) return;
   try {
     const data = await fetchJson(`${apiPrefix}/chat/${encodeURIComponent(chatId)}/reset`, { method: "POST" });
     messages.innerHTML = "";
@@ -76,20 +110,31 @@ async function resetChat() {
   }
 }
 
+function startNewChatSession() {
+  const id = createChatSessionId();
+  setChatSessionId(id);
+  messages.innerHTML = "";
+  showToast(toast, "Новая сессия");
+}
+
 chatForm.addEventListener("submit", sendChatMessage);
-loadHistoryBtn.addEventListener("click", loadHistory);
+if (newChatBtn) {
+  newChatBtn.addEventListener("click", startNewChatSession);
+}
 resetChatBtn.addEventListener("click", resetChat);
 
 async function initPublicUi() {
+  const chatId = getOrCreateChatId();
+  updateSessionHint(chatId);
+  await loadHistory();
+
   const adminLink = document.getElementById("adminLink");
   try {
     const config = await fetchJson("/system/ui-config");
     if (adminLink && config.show_admin_link) {
       adminLink.classList.remove("hidden");
     }
-  } catch (_error) {
-    // Public chat works without ui-config; admin link stays hidden.
-  }
+  } catch (_error) {}
 }
 
 initPublicUi();

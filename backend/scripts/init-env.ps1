@@ -1,5 +1,6 @@
 param(
-    [string]$EnvPath = ""
+    [string]$EnvPath = "",
+    [switch]$Prod
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,13 +26,14 @@ function Set-EnvValue {
         [string]$Key,
         [string]$Value
     )
-    $pattern = "^(#\s*)?$([regex]::Escape($Key))=.*$"
+    $pattern = "(?m)^$([regex]::Escape($Key))=.*$"
     $line = "$Key=$Value"
     $content = Get-Content $EnvPath -Raw
     if ($content -match "(?m)^$([regex]::Escape($Key))=") {
-        $content = [regex]::Replace($content, $pattern, $line, 1)
+        $content = [regex]::Replace($content, $pattern, $line)
     } elseif ($content -match "(?m)^#\s*$([regex]::Escape($Key))=") {
-        $content = [regex]::Replace($content, $pattern, $line, 1)
+        $commentPattern = "(?m)^#\s*$([regex]::Escape($Key))=.*$"
+        $content = [regex]::Replace($content, $commentPattern, $line)
     } else {
         $content = $content.TrimEnd() + "`n$line`n"
     }
@@ -64,7 +66,6 @@ if (-not (Get-EnvValue "ADMIN_PASSWORD")) {
     $chars = for ($i = 0; $i -lt 24; $i++) { $alphabet[(Get-Random -Maximum $alphabet.Length)] }
     $pass = -join $chars
     Set-EnvValue "ADMIN_PASSWORD" $pass
-    Write-Host "Generated ADMIN_PASSWORD (save it - it is shown once)"
     Write-Host "ADMIN_PASSWORD=$pass"
 }
 
@@ -87,23 +88,29 @@ if (-not (Get-EnvValue "LLM_SETTINGS_ENCRYPTION_KEY")) {
 
 if (-not (Get-EnvValue "CHAT_ACL_DISABLED")) {
     Set-EnvValue "CHAT_ACL_DISABLED" "true"
-    Write-Host "Set CHAT_ACL_DISABLED=true (local web chat without signature)"
+    Write-Host "CHAT_ACL_DISABLED=true"
 }
 
 if (-not (Get-EnvValue "LLM_ALLOW_RULE_BASED_FALLBACK")) {
     Set-EnvValue "LLM_ALLOW_RULE_BASED_FALLBACK" "true"
-    Write-Host "Set LLM_ALLOW_RULE_BASED_FALLBACK=true (dev fallback LLM)"
+    Write-Host "LLM_ALLOW_RULE_BASED_FALLBACK=true"
 }
 
 if (-not (Get-EnvValue "LLM_BOOTSTRAP_DEFAULT")) {
     Set-EnvValue "LLM_BOOTSTRAP_DEFAULT" "true"
-    Write-Host "Set LLM_BOOTSTRAP_DEFAULT=true (seed rule_based integration on first start)"
+    Write-Host "LLM_BOOTSTRAP_DEFAULT=true"
 }
 
 if (-not (Get-EnvValue "PUBLIC_SHOW_ADMIN_LINK")) {
     Set-EnvValue "PUBLIC_SHOW_ADMIN_LINK" "false"
 }
 
-Write-Host ""
-Write-Host "Env ready: $EnvPath"
-Write-Host "Set TELEGRAM_BOT_TOKEN manually if you need the bot profile."
+if ($Prod) {
+    Set-EnvValue "LLM_ALLOW_RULE_BASED_FALLBACK" "false"
+    Set-EnvValue "LLM_BOOTSTRAP_DEFAULT" "false"
+    Set-EnvValue "PUBLIC_SHOW_ADMIN_LINK" "false"
+    Set-EnvValue "USE_FAKE_EMBEDDINGS" "false"
+    Write-Host "режим prod"
+}
+
+Write-Host ".env: $EnvPath"

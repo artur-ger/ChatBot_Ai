@@ -7,7 +7,7 @@
 ## Документация состояния проекта
 
 - [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) — инвентаризация API и модулей
-- [docs/ROLLOUT.md](docs/ROLLOUT.md) — runbook вывода в prod (KB, LLM, smoke, бэкапы)
+- [docs/PROD_STATUS.md](docs/PROD_STATUS.md) — чеклист prod
 - [docs/DEV2_TZ_AUDIT.md](docs/DEV2_TZ_AUDIT.md) — аудит зоны Telegram/worker
 
 ## Что реализовано
@@ -112,15 +112,17 @@ docker compose --profile telegram up -d --build
 ```powershell
 # Первый запуск: .env + docker + smoke
 cd c:\ChatBot_Ai\backend
-.\scripts\init-env.ps1
-.\scripts\deploy.ps1
-# с ботом: .\scripts\deploy.ps1 -WithTelegram
+.\scripts\init-env.ps1 -Prod
+.\scripts\deploy.ps1 -Prod
+# с ботом: .\scripts\deploy.ps1 -Prod -WithTelegram
 
 # Go-live после загрузки KB и настройки LLM в /admin
 .\scripts\go-live-checklist.ps1 -AdminUsername admin -AdminPassword "<из .env>"
 
 # Бэкап PostgreSQL
 .\scripts\backup.ps1
+
+# Бэкап по расписанию (Windows, админ): .\scripts\schedule-backup.ps1
 
 # Полный прогон тестов
 poetry run pytest tests/unit tests/integration tests/e2e -q

@@ -176,7 +176,7 @@
 
 | `LLM_SETTINGS_ENCRYPTION_KEY` | Fernet для API keys в БД |
 
-| `LLM_ALLOW_RULE_BASED_FALLBACK` | Чат без активной LLM → заглушка |
+| `LLM_ALLOW_RULE_BASED_FALLBACK` | Без активной LLM → rule_based |
 
 | `PUBLIC_SHOW_ADMIN_LINK` | Ссылка на `/admin` на главной |
 

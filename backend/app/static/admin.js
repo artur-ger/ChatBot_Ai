@@ -42,12 +42,10 @@ const toast = document.getElementById("toast");
 let statusPollTimer = null;
 let lastDocsSnapshot = "";
 let lastTasksSnapshot = "";
-/** @type {Record<string, object>} */
 let llmProviderSpecs = {};
 let llmModelsAutoLoadTimer = null;
 let llmModelsLoading = false;
 
-/** Offline fallback — mirrors backend llm_provider_registry.py */
 const LLM_PROVIDER_FALLBACKS = [
   {
     id: "openai_compatible",
@@ -58,7 +56,7 @@ const LLM_PROVIDER_FALLBACKS = [
     base_url_placeholder: "https://api.openai.com/v1 · http://localhost:11434/v1 (Ollama)",
     api_key_placeholder: "API key (если требуется провайдером)",
     models_source: "remote",
-    description: "OpenAI API, Ollama, LM Studio, OpenRouter и другие совместимые сервисы",
+    description: "OpenAI-compatible",
   },
   {
     id: "gigachat",
@@ -66,10 +64,10 @@ const LLM_PROVIDER_FALLBACKS = [
     requires_base_url: false,
     requires_api_key: true,
     api_key_optional: false,
-    base_url_placeholder: "Можно оставить пустым — используется адрес по умолчанию",
-    api_key_placeholder: "Authorization Basic ... из кабинета Sber",
+    base_url_placeholder: "Пусто = default",
+    api_key_placeholder: "Basic …",
     models_source: "remote",
-    description: "GigaChat API (OAuth, токен обновляется автоматически)",
+    description: "GigaChat",
   },
   {
     id: "rule_based",
@@ -80,7 +78,7 @@ const LLM_PROVIDER_FALLBACKS = [
     base_url_placeholder: "",
     api_key_placeholder: "",
     models_source: "static",
-    description: "Локальная заглушка без внешней нейросети",
+    description: "Заглушка rule_based",
   },
 ];
 
@@ -135,10 +133,10 @@ function updateProviderFormHints() {
   if (spec.requires_api_key) credParts.push("API key");
   const credText = credParts.length ? credParts.join(" и ") : "дополнительные поля не нужны";
   if (spec.models_source === "static") {
-    llmModelsHint.textContent = `${spec.description}. Модель подставится автоматически.`;
+    llmModelsHint.textContent = "Модель фиксирована.";
     return;
   }
-  llmModelsHint.textContent = `Сначала выберите провайдера и укажите ${credText}, затем нажмите «Загрузить модели» или дождитесь автозагрузки. ${spec.description}`;
+  llmModelsHint.textContent = `${credText}. Загрузите модели.`;
 }
 
 async function loadLlmProviderSpecs() {
@@ -223,7 +221,6 @@ async function loginAdmin() {
 }
 
 function logoutAdmin() {
-  // Cookie сбрасывается на сервере (best-effort).
   fetchJson(`${apiPrefix}/admin/logout`, { method: "POST" }).catch(() => {});
   stopStatusPolling();
   showLoginScreen();
@@ -243,9 +240,8 @@ async function loadSystemInfo() {
     ].join(" · ");
 
     if (llmWarningEl) {
-      if (info.llm_using_fallback) {
-        llmWarningEl.textContent =
-          "Активная LLM-интеграция не настроена — чат использует rule_based заглушку. Добавьте gigachat или openai_compatible и нажмите Activate.";
+      if (info.llm_using_fallback || info.active_llm_provider === "rule_based") {
+        llmWarningEl.textContent = "Активна rule_based. Активируйте рабочую интеграцию.";
         llmWarningEl.classList.remove("hidden");
       } else {
         llmWarningEl.textContent = "";
@@ -271,10 +267,10 @@ async function uploadDocument(event) {
   try {
     const data = await fetchAdminJson(uploadUrl, { method: "POST", body: formData });
     if (isKbArchive) {
-      uploadResult.textContent = `KB archive: документов=${data.accepted}. Индексация идёт в фоне — статусы обновятся автоматически.`;
+      uploadResult.textContent = `Архив KB: принято ${data.accepted}, задача в очереди`;
       showToast(toast, "Архив отправлен в индексацию");
     } else {
-      uploadResult.textContent = `document_id=${data.document_id}, task_id=${data.task_id}. Статус обновится автоматически.`;
+      uploadResult.textContent = `document_id=${data.document_id}, task_id=${data.task_id}`;
       showToast(toast, "Документ отправлен");
     }
     fileInput.value = "";
@@ -418,7 +414,7 @@ function setLlmModelOptions(models, selectedModel = "", state = "loaded") {
   const placeholder = document.createElement("option");
   placeholder.value = "";
   if (state === "pending") {
-    placeholder.textContent = "Сначала загрузите модели";
+    placeholder.textContent = "Загрузите модели";
   } else if (state === "loading") {
     placeholder.textContent = "Загрузка списка…";
   } else if (models.length) {
@@ -524,7 +520,7 @@ function resetLlmForm() {
   llmBaseUrlInput.value = "";
   llmApiKeyInput.value = "";
   llmEnabledInput.checked = true;
-  llmActivateInput.checked = false;
+  llmActivateInput.checked = true;
   llmFormResult.textContent = "";
   setLlmModelOptions([], "", "pending");
   updateProviderFormHints();
@@ -613,7 +609,8 @@ async function saveLlmIntegration(event) {
       llmIdInput.value = created.id;
       llmFormResult.textContent = `Создано: ${created.id}`;
     }
-    showToast(toast, "LLM сохранена");
+    const activated = llmActivateInput.checked;
+    showToast(toast, activated ? "Сохранено и активировано" : "Сохранено", !activated);
     await Promise.all([loadLlmIntegrations(), loadSystemInfo()]);
   } catch (error) {
     showToast(toast, `Ошибка сохранения LLM: ${error.message}`, true);

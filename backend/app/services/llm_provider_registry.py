@@ -35,10 +35,10 @@ LLM_PROVIDER_SPECS: dict[LlmProviderType, LlmProviderSpec] = {
         requires_base_url=True,
         requires_api_key=False,
         api_key_optional=True,
-        base_url_placeholder="https://api.openai.com/v1 · http://localhost:11434/v1 (Ollama)",
-        api_key_placeholder="API key (если требуется провайдером)",
+        base_url_placeholder="https://api.openai.com/v1",
+        api_key_placeholder="API key",
         models_source="remote",
-        description="OpenAI API, Ollama, LM Studio, OpenRouter и другие совместимые сервисы",
+        description="OpenAI-compatible",
     ),
     "gigachat": LlmProviderSpec(
         id="gigachat",
@@ -46,10 +46,10 @@ LLM_PROVIDER_SPECS: dict[LlmProviderType, LlmProviderSpec] = {
         requires_base_url=False,
         requires_api_key=True,
         api_key_optional=False,
-        base_url_placeholder="Можно оставить пустым — используется адрес по умолчанию",
-        api_key_placeholder="Authorization Basic ... из кабинета Sber",
+        base_url_placeholder="",
+        api_key_placeholder="Basic …",
         models_source="remote",
-        description="GigaChat API (OAuth, токен обновляется автоматически)",
+        description="GigaChat",
     ),
     "rule_based": LlmProviderSpec(
         id="rule_based",
@@ -60,7 +60,7 @@ LLM_PROVIDER_SPECS: dict[LlmProviderType, LlmProviderSpec] = {
         base_url_placeholder="",
         api_key_placeholder="",
         models_source="static",
-        description="Локальная заглушка без внешней нейросети",
+        description="Заглушка rule_based",
     ),
 }
 

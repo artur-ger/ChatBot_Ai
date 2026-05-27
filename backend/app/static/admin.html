@@ -11,7 +11,7 @@
     <div class="app">
       <section id="loginScreen" class="card admin-login-card">
         <h2>Вход в админ-панель</h2>
-        <p class="muted">Логин и пароль (переменные <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code>).</p>
+        <p class="muted">ADMIN_USERNAME / ADMIN_PASSWORD из .env</p>
         <div class="stack">
           <label for="adminUsernameInput">Admin username</label>
           <input id="adminUsernameInput" type="text" placeholder="admin" autocomplete="username" />
@@ -42,9 +42,7 @@
               <h2>Промпт RAG</h2>
               <button id="resetPromptBtn" type="button" class="btn-secondary">По умолчанию</button>
             </div>
-            <p class="muted">
-              Системная инструкция для модели. Блоки «История», «Контекст» и «Вопрос» добавляются автоматически из базы знаний и чата.
-            </p>
+            <p class="muted">Системная инструкция. История и контекст добавляются пайплайном.</p>
             <form id="promptForm" class="stack admin-form-block">
               <label for="systemInstructionInput">Системная инструкция</label>
               <textarea
@@ -93,16 +91,14 @@
                 <option value="rule_based">rule_based (dev)</option>
               </select>
               <label for="llmBaseUrl">Base URL</label>
-              <input id="llmBaseUrl" type="url" placeholder="openai: https://api.openai.com/v1 · gigachat: можно оставить пустым" />
+              <input id="llmBaseUrl" type="url" placeholder="https://api.openai.com/v1" />
               <label for="llmApiKey">API key / OAuth Basic</label>
-              <input id="llmApiKey" type="password" autocomplete="new-password" placeholder="gigachat: Basic ... из кабинета Sber" />
-              <p id="llmModelsHint" class="muted llm-models-hint">
-                Список моделей появится после выбора провайдера и ввода учётных данных (Base URL — если требуется, и API key).
-              </p>
+              <input id="llmApiKey" type="password" autocomplete="new-password" placeholder="Basic …" />
+              <p id="llmModelsHint" class="muted llm-models-hint"></p>
               <label for="llmModel">Модель</label>
               <div class="model-picker-row">
                 <select id="llmModel" required>
-                  <option value="">Сначала загрузите модели</option>
+                  <option value="">—</option>
                 </select>
                 <button type="button" id="llmRefreshModelsBtn" class="btn-secondary">Загрузить модели</button>
               </div>
@@ -181,6 +177,6 @@
     <div id="toast" class="toast hidden"></div>
 
     <script src="/static/common.js?v=20260526-admin-auth"></script>
-    <script src="/static/admin.js?v=20260526-llm-form-ux"></script>
+    <script src="/static/admin.js?v=20260527-2"></script>
   </body>
 </html>

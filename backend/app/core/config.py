@@ -41,6 +41,22 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 6.0
     llm_retry_attempts: int = 2
     llm_model: str = Field(default="rule-based-llm")
+    llm_allow_rule_based_fallback: bool = Field(default=True)
+    llm_bootstrap_default: bool = Field(default=False)
+    llm_integration_cache_ttl_sec: int = Field(default=30)
+    rag_prompt_cache_ttl_sec: int = Field(default=30)
+    llm_settings_encryption_key: str | None = Field(default=None)
+    admin_api_token: str | None = Field(default=None)
+    admin_api_auth_disabled: bool = Field(default=False)
+    public_show_admin_link: bool = Field(default=False)
+
+    # Admin login (username/password) -> signed cookie session.
+    # If ADMIN_API_AUTH_DISABLED=true, auth is bypassed entirely.
+    admin_username: str | None = Field(default=None)
+    admin_password: str | None = Field(default=None)
+    admin_session_secret: str | None = Field(default=None)
+    admin_session_ttl_sec: int = Field(default=8 * 60 * 60)  # 8 hours
+    admin_session_cookie_name: str = Field(default="admin_session")
 
     chat_history_max_messages: int = Field(default=12)
     chat_history_max_chars: int = Field(default=6000)
@@ -59,6 +75,18 @@ class Settings(BaseSettings):
     llm_circuit_breaker_cooldown_sec: int = Field(default=30)
     chat_cache_ttl_sec: int = Field(default=45)
     chat_cache_max_items: int = Field(default=200)
+
+    # GigaChat: URLs/TLS — в env; секреты (Basic OAuth) только в админке → LLM integrations
+    gigachat_scope: str = Field(default="GIGACHAT_API_PERS")
+    gigachat_auth_url: str = Field(
+        default="https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+    )
+    gigachat_api_url: str = Field(
+        default="https://gigachat.devices.sberbank.ru/api/v1"
+    )
+    gigachat_allow_unsafe_tls: bool = Field(default=False)
+    gigachat_token_refresh_margin_sec: float = Field(default=300.0)
+    gigachat_default_model: str = Field(default="GigaChat")
 
 
 settings = Settings()

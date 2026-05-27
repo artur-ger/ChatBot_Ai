@@ -4,72 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ИИ чат поддержки</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260519-split" />
   </head>
   <body>
     <div class="bg"></div>
-    <div class="app">
+    <div class="app app-narrow">
       <header class="topbar">
         <div>
           <p class="eyebrow">ChatBot AI</p>
-          <h1>Панель ИИ-бота поддержки</h1>
+          <h1>Чат поддержки</h1>
         </div>
+        <a id="adminLink" class="topbar-link hidden" href="/admin">Админ-панель</a>
       </header>
 
-      <main class="layout">
-        <section class="card upload-card">
-          <div class="section-head">
-            <h2>Загрузка базы знаний</h2>
-          </div>
-          <form id="uploadForm" class="stack">
-            <input id="fileInput" type="file" required />
-            <button type="submit">Загрузить документ</button>
-          </form>
-          <p id="uploadResult" class="muted"></p>
-        </section>
-
-        <section class="card docs-card">
-          <div class="section-head">
-            <h2>Документы</h2>
-            <button id="refreshDocsBtn" type="button" class="btn-secondary">Обновить</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Файл</th>
-                  <th>Тип</th>
-                  <th>Статус</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="docsTable"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="card tasks-card">
-          <div class="section-head">
-            <h2>Задачи индексации</h2>
-            <button id="refreshTasksBtn" type="button" class="btn-secondary">Обновить</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Task ID</th>
-                  <th>Document ID</th>
-                  <th>Статус</th>
-                  <th>Celery</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="tasksTable"></tbody>
-            </table>
-          </div>
-        </section>
-
+      <main class="layout layout-single">
         <section class="card chat-card">
           <div class="section-head">
             <h2>Чат</h2>
@@ -78,7 +26,7 @@
             <label for="chatId">Chat ID</label>
             <input id="chatId" type="text" value="demo-user" />
           </div>
-          <div id="messages" class="messages"></div>
+          <div id="messages" class="messages messages-tall"></div>
           <form id="chatForm" class="chat-form">
             <input id="chatInput" type="text" placeholder="Введите вопрос..." required minlength="2" />
             <button type="submit">Отправить</button>
@@ -93,6 +41,7 @@
 
     <div id="toast" class="toast hidden"></div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/common.js?v=20260526-rollout"></script>
+    <script src="/static/chat.js?v=20260526-sources"></script>
   </body>
 </html>

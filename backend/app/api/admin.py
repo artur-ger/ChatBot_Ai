@@ -1,16 +1,21 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
+from app.core.admin_auth import require_admin_auth
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.schemas.chat import ErrorResponse
 from app.schemas.ingestion import ReindexAcceptedResponse, ReindexRequest
 from app.workers.tasks_indexing import reindex_documents
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(require_admin_auth)],
+)
 logger = logging.getLogger(__name__)
 
 

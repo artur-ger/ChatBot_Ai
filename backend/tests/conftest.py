@@ -15,11 +15,17 @@ os.environ.setdefault("CHROMA_HOST", "")
 os.environ.setdefault("USE_FAKE_EMBEDDINGS", "true")
 os.environ.setdefault("CHAT_ACL_SECRET", "test-chat-secret")
 os.environ.setdefault("CHAT_ACL_DISABLED", "true")
+os.environ.setdefault("ADMIN_API_AUTH_DISABLED", "true")
+os.environ.setdefault("LLM_BOOTSTRAP_DEFAULT", "false")
 _CHROMA_TEST_DIR = Path(tempfile.mkdtemp(prefix="chroma_tests_"))
 os.environ["CHROMA_PERSIST_PATH"] = str(_CHROMA_TEST_DIR)
 
 _DB_FILE = Path(tempfile.mkdtemp(prefix="sql_tests_")) / "app.sqlite3"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_DB_FILE.as_posix()}"
+
+from cryptography.fernet import Fernet  # noqa: E402
+
+os.environ.setdefault("LLM_SETTINGS_ENCRYPTION_KEY", Fernet.generate_key().decode())
 
 from app.db import metadata as app_metadata  # noqa: E402
 from app.db.session import get_db_session  # noqa: E402

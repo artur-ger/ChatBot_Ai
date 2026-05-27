@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.admin_auth import require_admin_auth
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.session import get_db_session
@@ -19,7 +20,11 @@ from app.schemas.ingestion import IndexingTaskStatusResponse, TaskCancelResponse
 from app.workers.celery_app import celery_app
 from app.workers.tasks_indexing import index_document
 
-router = APIRouter(prefix="/indexing-tasks", tags=["indexing"])
+router = APIRouter(
+    prefix="/indexing-tasks",
+    tags=["indexing"],
+    dependencies=[Depends(require_admin_auth)],
+)
 logger = logging.getLogger(__name__)
 
 

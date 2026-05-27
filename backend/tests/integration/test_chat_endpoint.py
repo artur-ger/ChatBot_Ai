@@ -1,6 +1,7 @@
 from app.services.llm_client import BaseLlmClient
 from app.services.rag_pipeline import RagPipeline
 from app.services.retriever import BaseRetriever, RetrievedChunk
+from tests.support.llm_factory_stubs import StubLlmFactory
 
 
 class IntegrationRetriever(BaseRetriever):
@@ -14,9 +15,11 @@ class IntegrationLlm(BaseLlmClient):
 
 
 def test_chat_endpoint_contract_shape(client):
+    stub_factory = StubLlmFactory(IntegrationLlm(), model_name="integration-llm")
+    client.app.state.llm_factory = stub_factory
     client.app.state.rag_pipeline = RagPipeline(
         retriever=IntegrationRetriever(),
-        llm_client=IntegrationLlm(),
+        llm_factory=stub_factory,
     )
 
     chat_id = "chat-int"

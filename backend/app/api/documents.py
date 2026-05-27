@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.admin_auth import require_admin_auth
 from app.core.errors import AppError
 from app.core.limiter import limiter
 from app.db.session import get_db_session
@@ -20,12 +21,19 @@ from app.schemas.ingestion import (
     DocumentListResponse,
     DocumentStatusResponse,
     IngestAcceptedResponse,
+    KbArchiveDocumentAccepted,
+    KbArchiveImportResponse,
 )
+from app.services.kb_archive_import import new_task_id, parse_kb_archive
 from app.services.ingestion_service import save_upload_to_temp
 from app.integrations.chroma_store import ChromaVectorStore
 from app.workers.tasks_indexing import index_document
 
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(
+    prefix="/documents",
+    tags=["documents"],
+    dependencies=[Depends(require_admin_auth)],
+)
 logger = logging.getLogger(__name__)
 
 
@@ -106,6 +114,103 @@ async def upload_document(
         return IngestAcceptedResponse(task_id=task_id, document_id=doc_id, status="pending")
     except AppError as exc:
         logger.warning("Upload validation error: %s", exc.message)
+        return JSONResponse(
+            status_code=400,
+            content=ErrorResponse(
+                error_code=exc.error_code,
+                message=exc.message,
+                retry_allowed=exc.retry_allowed,
+            ).model_dump(),
+        )
+
+
+@router.post(
+    "/kb-archive",
+    status_code=202,
+    response_model=KbArchiveImportResponse,
+    responses={400: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+)
+@limiter.limit(settings.rate_limit_default)
+async def upload_kb_archive(
+    request: Request,
+    file: UploadFile = File(),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> KbArchiveImportResponse | JSONResponse:
+    try:
+        raw_bytes = await file.read()
+        entries = await parse_kb_archive(
+            filename=file.filename or "kb.zip",
+            declared_content_type=file.content_type,
+            file_bytes=raw_bytes,
+        )
+
+        repository = IngestionRepository(db_session)
+        vector_store = ChromaVectorStore(
+            host=settings.chroma_host,
+            port=settings.chroma_port,
+            persist_path=settings.chroma_persist_path,
+            collection_name=f"kb_{settings.embedding_model_version}",
+        )
+
+        accepted: list[tuple[str, str, str]] = []
+        for entry in entries:
+            existing = await repository.get_document(entry.document_id)
+            if existing is not None:
+                vector_store.delete_document_chunks(entry.document_id)
+                await repository.delete_document(entry.document_id)
+
+            task_id = new_task_id()
+            await repository.create_document(
+                Document(
+                    id=entry.document_id,
+                    original_filename=entry.original_filename,
+                    mime_type="text/markdown" if entry.doc_type == "markdown" else "text/plain",
+                    size_bytes=entry.size_bytes,
+                    sha256=entry.sha256,
+                    doc_type=entry.doc_type,
+                    status="pending",
+                    temp_path=entry.temp_path,
+                    error_message=None,
+                    embedding_model_version=settings.embedding_model_version,
+                )
+            )
+            await repository.create_task(IndexingTask(id=task_id, document_id=entry.document_id, status="pending"))
+            accepted.append((entry.document_id, task_id, entry.source_path))
+
+        await repository.commit()
+
+        for document_id, task_id, _source_path in accepted:
+            try:
+                async_result = index_document.apply_async(args=[document_id, task_id], task_id=task_id)
+                await repository.set_task_celery_id(task_id=task_id, celery_task_id=async_result.id)
+            except Exception as exc:
+                logger.exception("Failed to enqueue KB indexing task: %s", str(exc))
+                await repository.update_document_status(
+                    document_id=document_id,
+                    status="failed",
+                    error_message=str(exc),
+                )
+                await repository.update_task_status(
+                    task_id=task_id,
+                    status="failed",
+                    error_message=str(exc),
+                )
+
+        return KbArchiveImportResponse(
+            accepted=len(accepted),
+            skipped=len(entries) - len(accepted),
+            items=[
+                KbArchiveDocumentAccepted(
+                    document_id=document_id,
+                    task_id=task_id,
+                    source_path=source_path,
+                    status="pending",
+                )
+                for document_id, task_id, source_path in accepted
+            ],
+        )
+    except AppError as exc:
+        logger.warning("KB archive validation error: %s", exc.message)
         return JSONResponse(
             status_code=400,
             content=ErrorResponse(

@@ -16,20 +16,30 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
 from app.api.admin import router as admin_router
+from app.api.admin_login import router as admin_login_router
+from app.api.llm_integrations import llm_integrations_router, llm_tools_router
+from app.api.rag_prompt import router as rag_prompt_router
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
 from app.api.indexing_tasks import router as indexing_tasks_router
 from app.api.system import router as system_router
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
 from app.integrations.chroma_store import ChromaVectorStore
 from app.observability.logging import configure_logging
 from app.observability.metrics import InMemoryMetrics
 from app.observability.alerts import send_critical_alert
 from app.schemas.chat import ErrorResponse
 from app.services.embedding_factory import get_embedding_service
-from app.services.llm_client import RuleBasedLlmClient
+from app.services.gigachat_auth import (
+    start_gigachat_token_refresh_loop,
+    stop_gigachat_token_refresh_loop,
+    warm_active_gigachat_integration,
+)
+from app.services.llm_bootstrap import ensure_default_llm_integration
+from app.services.llm_factory import LlmClientFactory
+from app.services.rag_prompt_service import RagPromptService
 from app.services.rag_pipeline import RagPipeline
 from app.services.retriever import ChromaRetriever
 from app.workers import tasks as worker_tasks  # noqa: F401
@@ -41,6 +51,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     app.state.metrics = InMemoryMetrics()
+    await ensure_default_llm_integration(SessionLocal)
     embedding_service = get_embedding_service()
     vector_store = ChromaVectorStore(
         host=settings.chroma_host,
@@ -49,11 +60,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         collection_name=f"kb_{settings.embedding_model_version}",
     )
     app.state.embedding_service = embedding_service
+    app.state.llm_factory = LlmClientFactory(SessionLocal)
+    app.state.rag_prompt_service = RagPromptService(SessionLocal)
     app.state.rag_pipeline = RagPipeline(
         retriever=ChromaRetriever(vector_store=vector_store, embedding_service=embedding_service),
-        llm_client=RuleBasedLlmClient(),
+        llm_factory=app.state.llm_factory,
+        rag_prompt_service=app.state.rag_prompt_service,
     )
+    gigachat_refresh_task = start_gigachat_token_refresh_loop()
+    await warm_active_gigachat_integration(SessionLocal)
     yield
+    if gigachat_refresh_task is not None:
+        await stop_gigachat_token_refresh_loop()
     await engine.dispose()
 
 
@@ -86,6 +104,10 @@ app.include_router(chat_router, prefix=settings.api_prefix)
 app.include_router(documents_router, prefix=settings.api_prefix)
 app.include_router(indexing_tasks_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
+app.include_router(admin_login_router, prefix=settings.api_prefix)
+app.include_router(llm_integrations_router, prefix=settings.api_prefix)
+app.include_router(llm_tools_router, prefix=settings.api_prefix)
+app.include_router(rag_prompt_router, prefix=settings.api_prefix)
 app.include_router(system_router)
 
 Instrumentator().instrument(app).expose(app, include_in_schema=True)
@@ -94,6 +116,11 @@ Instrumentator().instrument(app).expose(app, include_in_schema=True)
 @app.get("/", include_in_schema=False)
 async def frontend_index() -> FileResponse:
     return FileResponse("app/static/index.html")
+
+
+@app.get("/admin", include_in_schema=False)
+async def frontend_admin() -> FileResponse:
+    return FileResponse("app/static/admin.html")
 
 if settings.otel_exporter_otlp_endpoint:
     from opentelemetry import trace

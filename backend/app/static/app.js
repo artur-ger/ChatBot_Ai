@@ -111,14 +111,23 @@ async function uploadDocument(event) {
     return;
   }
   const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
+  const file = fileInput.files[0];
+  formData.append("file", file);
+  const isKbArchive = file.name.toLowerCase().endsWith(".zip");
+  const uploadUrl = isKbArchive ? `${apiPrefix}/documents/kb-archive` : `${apiPrefix}/documents`;
   try {
-    const data = await fetchJson(`${apiPrefix}/documents`, {
+    const data = await fetchJson(uploadUrl, {
       method: "POST",
       body: formData,
     });
-    uploadResult.textContent = `Принято: document_id=${data.document_id}, task_id=${data.task_id}`;
-    showToast("Документ отправлен в индексацию");
+    if (isKbArchive) {
+      uploadResult.textContent = `KB archive принят: документов=${data.accepted}, задач=${data.items.length}`;
+      showToast("База знаний отправлена в индексацию");
+    } else {
+      uploadResult.textContent = `Принято: document_id=${data.document_id}, task_id=${data.task_id}`;
+      showToast("Документ отправлен в индексацию");
+    }
+    fileInput.value = "";
     await Promise.all([loadDocuments(), loadTasks()]);
   } catch (error) {
     showToast(`Ошибка загрузки: ${error.message}`, true);

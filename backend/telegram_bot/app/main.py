@@ -12,10 +12,10 @@ from aiogram.filters import Command
 from aiogram.types import Document, Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
-from app.storage import DocumentStore
-
 from app.config import settings
 from app.core_api import CoreApiClient, CoreApiUnavailable, CoreApiValidationError
+from app.formatting import format_chat_message
+from app.storage import DocumentStore
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,17 +27,22 @@ BTN_HELP = "❓ Помощь"
 
 
 def main_keyboard() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
+    keyboard: list[list[KeyboardButton]] = []
+    if settings.admin_api_token:
+        keyboard.append(
             [
                 KeyboardButton(text=BTN_MY_DOCS),
                 KeyboardButton(text=BTN_UPLOAD),
-            ],
-            [
-                KeyboardButton(text=BTN_STATUS),
-                KeyboardButton(text=BTN_HELP),
-            ],
-        ],
+            ]
+        )
+    keyboard.append(
+        [
+            KeyboardButton(text=BTN_STATUS),
+            KeyboardButton(text=BTN_HELP),
+        ]
+    )
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
         resize_keyboard=True,
         input_field_placeholder="Выберите действие или напишите вопрос",
     )
@@ -108,14 +113,23 @@ async def help_button(message: Message) -> None:
 
 
 async def show_help(message: Message) -> None:
+    upload_line = "📎 Загрузить документ — отправьте PDF, DOCX, TXT.\n" if settings.admin_api_token else ""
+    my_docs_line = "📚 Мои документы — список документов, которые вы загрузили через этого бота.\n" if settings.admin_api_token else ""
     await message.answer(
         "Как пользоваться:\n\n"
-        "📎 Загрузить документ — отправьте PDF, DOCX, TXT.\n"
-        "📚 Мои документы — список документов, которые вы загрузили через этого бота.\n"
+        f"{upload_line}"
+        f"{my_docs_line}"
+        "💬 Напишите вопрос — ответ по базе знаний с источниками.\n"
+        "/reset — очистить историю диалога.\n"
         "⚙️ Статус сервиса — проверить доступность Core API.\n\n"
         "История ответов хранится в Core API. Бот хранит только связь между вашим chat_id и загруженными document_id.",
         reply_markup=main_keyboard(),
     )
+
+
+@router.message(Command("reset"))
+async def reset_command(message: Message) -> None:
+    await reset_chat_history(message)
 
 
 @router.message(Command("status"))
@@ -143,8 +157,31 @@ async def check_status(message: Message) -> None:
 
     await message.answer("Core API доступен.", reply_markup=main_keyboard())
 
+
+async def reset_chat_history(message: Message) -> None:
+    chat_id = str(message.chat.id)
+    try:
+        deleted = await core_api.reset_chat(chat_id=chat_id)
+    except CoreApiUnavailable:
+        await message.answer("Сервис временно недоступен, попробуйте позже.", reply_markup=main_keyboard())
+        return
+    except CoreApiValidationError as exc:
+        await message.answer(f"Не удалось сбросить историю: {exc}", reply_markup=main_keyboard())
+        return
+
+    await message.answer(
+        f"История чата очищена. Удалено сообщений: {deleted}.",
+        reply_markup=main_keyboard(),
+    )
+
 @router.message(F.text == BTN_UPLOAD)
 async def upload_button(message: Message) -> None:
+    if not settings.admin_api_token:
+        await message.answer(
+            "Загрузка документов через Telegram отключена. Используйте админ-панель сайта.",
+            reply_markup=main_keyboard(),
+        )
+        return
     await message.answer(
         "Отправьте файл в формате PDF, DOCX, TXT",
         reply_markup=main_keyboard(),
@@ -152,6 +189,12 @@ async def upload_button(message: Message) -> None:
 
 @router.message(F.text == BTN_MY_DOCS)
 async def my_documents_button(message: Message) -> None:
+    if not settings.admin_api_token:
+        await message.answer(
+            "Список документов в Telegram недоступен. Используйте админ-панель сайта.",
+            reply_markup=main_keyboard(),
+        )
+        return
     await show_my_documents(message)
 
 
@@ -212,6 +255,12 @@ async def show_my_documents(message: Message) -> None:
 
 @router.message(F.document)
 async def handle_document(message: Message, bot: Bot) -> None:
+    if not settings.admin_api_token:
+        await message.answer(
+            "Загрузка документов через Telegram отключена. Используйте админ-панель сайта.",
+            reply_markup=main_keyboard(),
+        )
+        return
     document: Document | None = message.document
     if document is None or document.file_name is None:
         await message.answer("Не удалось прочитать файл.")
@@ -309,9 +358,9 @@ async def handle_text(message: Message) -> None:
     await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
 
     try:
-        answer = await core_api.send_message(chat_id=chat_id, text=text)
-    except CoreApiValidationError as exc:
-        await message.answer(f"Запрос не принят: попробуйте точнее задать вопрос")
+        reply = await core_api.send_message(chat_id=chat_id, text=text)
+    except CoreApiValidationError:
+        await message.answer("Запрос не принят: попробуйте точнее задать вопрос")
         return
     except CoreApiUnavailable:
         await message.answer("Сервис временно недоступен, попробуйте позже.")
@@ -321,7 +370,7 @@ async def handle_text(message: Message) -> None:
         await message.answer("Произошла ошибка. Попробуйте позже.")
         return
 
-    await send_long_message(message, answer)
+    await send_long_message(message, format_chat_message(reply))
 
 
 async def main() -> None:

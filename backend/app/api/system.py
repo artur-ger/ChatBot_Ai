@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 
 from fastapi import APIRouter, Request
@@ -9,8 +10,11 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.session import SessionLocal
+from app.repositories.llm_integration_repository import LlmIntegrationRepository
 from app.schemas.chat import ErrorResponse
 from app.schemas.ingestion import SystemInfoResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["system"])
 
@@ -42,10 +46,38 @@ async def readyz(request: Request) -> object:
         )
 
 
+@router.get("/system/ui-config")
+@limiter.limit(settings.rate_limit_default)
+async def ui_config(request: Request) -> dict[str, bool]:
+    return {
+        "show_admin_link": settings.public_show_admin_link,
+        "chat_acl_required": not settings.chat_acl_disabled,
+    }
+
+
 @router.get("/system/info", response_model=SystemInfoResponse)
 @limiter.limit(settings.rate_limit_default)
 async def system_info(request: Request) -> SystemInfoResponse:
     chroma_mode = "http" if settings.chroma_host else "persistent"
+    active_id: str | None = None
+    active_provider: str | None = None
+    active_model: str | None = None
+    integrations_count = 0
+    try:
+        async with SessionLocal() as session:
+            repository = LlmIntegrationRepository(session)
+            rows = await repository.list_all()
+            integrations_count = len(rows)
+            active = await repository.get_active()
+            if active is not None:
+                active_id = active.id
+                active_provider = active.provider
+                active_model = active.model
+    except Exception:
+        logger.exception("Failed to load LLM integration info")
+
+    llm_configured = active_id is not None or settings.llm_allow_rule_based_fallback
+    llm_using_fallback = active_id is None and settings.llm_allow_rule_based_fallback
     return SystemInfoResponse(
         app_name=settings.app_name,
         api_prefix=settings.api_prefix,
@@ -53,4 +85,10 @@ async def system_info(request: Request) -> SystemInfoResponse:
         embedding_model_version=settings.embedding_model_version,
         use_fake_embeddings=settings.use_fake_embeddings,
         chroma_mode=chroma_mode,
+        llm_configured=llm_configured,
+        llm_using_fallback=llm_using_fallback,
+        active_llm_integration_id=active_id,
+        active_llm_provider=active_provider,
+        active_llm_model=active_model,
+        llm_integrations_count=integrations_count,
     )

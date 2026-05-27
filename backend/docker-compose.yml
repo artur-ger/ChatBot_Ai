@@ -47,12 +47,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      pull: false
+      args:
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.12-slim}
     container_name: chatbot-backend
+    # .env лежит в корне репозитория (см. init-env.ps1), не в backend/
+    env_file:
+      - path: ../.env
+        required: false
     dns:
       - 8.8.8.8
       - 1.1.1.1
     volumes:
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/app/.cache/huggingface
       - uploads_data:/app/data/uploads
     depends_on:
       postgres:
@@ -63,6 +70,12 @@ services:
         condition: service_started
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5)\""]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 120s
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql+asyncpg://chatbot:chatbot@postgres:5432/chatbot_ai
@@ -70,25 +83,34 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - CHROMA_HOST=chroma
       - CHROMA_PORT=8000
-      - CHAT_ACL_DISABLED=true
-      - HF_HOME=/root/.cache/huggingface
-      # Токен из .env рядом с compose (для gated-моделей). Пустое значение допустимо.
-      - HF_TOKEN=${HF_TOKEN:-}
-      # Переключатель без правки файла: в .env можно задать USE_FAKE_EMBEDDINGS=true
-      - USE_FAKE_EMBEDDINGS=${USE_FAKE_EMBEDDINGS:-false}
+      - HF_HOME=/app/.cache/huggingface
+      - LLM_BOOTSTRAP_DEFAULT=true
+    command: ["sh", "-c", "mkdir -p /app/.cache/huggingface /app/data/uploads && chmod -R 0777 /app/.cache/huggingface /app/data/uploads && poetry run alembic upgrade head && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
   worker:
     build:
       context: .
       dockerfile: Dockerfile
+      pull: false
+      args:
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.12-slim}
     container_name: chatbot-worker
+    env_file:
+      - path: ../.env
+        required: false
     dns:
       - 8.8.8.8
       - 1.1.1.1
     volumes:
-      - huggingface_cache:/root/.cache/huggingface
+      - worker_huggingface_cache:/app/.cache/huggingface
       - uploads_data:/app/data/uploads
-    command: ["sh", "-c", "poetry run celery -A app.workers.celery_app worker -l INFO --uid=nobody --gid=nogroup"]
+    command: ["sh", "-c", "mkdir -p /app/.cache/huggingface /app/data/uploads && chmod -R 0777 /app/.cache/huggingface /app/data/uploads && poetry run celery -A app.workers.celery_app worker -l INFO --concurrency=1"]
+    healthcheck:
+      test: ["CMD-SHELL", "poetry run celery -A app.workers.celery_app inspect ping --timeout 10 2>/dev/null | grep -q pong"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,36 +125,47 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - CHROMA_HOST=chroma
       - CHROMA_PORT=8000
-      - CHAT_ACL_DISABLED=true
-      - HF_HOME=/root/.cache/huggingface
-      - HF_TOKEN=${HF_TOKEN:-}
-      - USE_FAKE_EMBEDDINGS=${USE_FAKE_EMBEDDINGS:-false}
+      - HF_HOME=/app/.cache/huggingface
 
   telegram-bot:
+    profiles:
+      - telegram
     build:
       context: telegram_bot
       dockerfile: Dockerfile
+      pull: false
+      args:
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.12-slim}
     container_name: chatbot-telegram-bot
+    env_file:
+      - path: ../.env
+        required: false
     dns:
       - 8.8.8.8
       - 1.1.1.1
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - telegram_bot_data:/app/data
     environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - CORE_API_BASE_URL=http://backend:8000/api/v1
       - BOT_STORAGE_PATH=/app/data/bot.sqlite3
       - BOT_REQUEST_TIMEOUT_SECONDS=10
       - BOT_UPLOAD_POLL_INTERVAL_SECONDS=2
       - BOT_UPLOAD_POLL_ATTEMPTS=30
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://backend:8000/healthz', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   postgres_data:
   chroma_data:
   huggingface_cache:
+  worker_huggingface_cache:
   uploads_data:
   telegram_bot_data:

@@ -17,6 +17,7 @@ param(
 $RegistryPrefix = $RegistryPrefix.TrimEnd("/")
 
 $pairs = @(
+    @{ Src = "python:3.12-slim"; Dst = "$RegistryPrefix/python:3.12-slim" },
     @{ Src = "postgres:15-alpine"; Dst = "$RegistryPrefix/postgres:15-alpine" },
     @{ Src = "redis:7-alpine"; Dst = "$RegistryPrefix/redis:7-alpine" },
     @{ Src = "chromadb/chroma:1.5.8"; Dst = "$RegistryPrefix/chroma:1.5.8" }
@@ -33,7 +34,8 @@ foreach ($p in $pairs) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-Write-Host "Done. Добавь в backend/.env (файл рядом с docker-compose.yml — compose подхватит переменные):"
+Write-Host "Done. Добавь в корневой .env (compose из корня репозитория):"
+Write-Host "PYTHON_BASE_IMAGE=$RegistryPrefix/python:3.12-slim"
 Write-Host "POSTGRES_IMAGE=$RegistryPrefix/postgres:15-alpine"
 Write-Host "REDIS_IMAGE=$RegistryPrefix/redis:7-alpine"
 Write-Host "CHROMA_IMAGE=$RegistryPrefix/chroma:1.5.8"

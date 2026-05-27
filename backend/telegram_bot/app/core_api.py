@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from app.config import settings
+from app.formatting import ChatReply, parse_chat_reply
 
 
 class CoreApiUnavailable(Exception):
@@ -29,7 +30,13 @@ class CoreApiClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def send_message(self, *, chat_id: str, text: str) -> str:
+    def _auth_headers(self) -> dict[str, str]:
+        token = (settings.admin_api_token or "").strip()
+        if not token:
+            return {}
+        return {"Authorization": f"Bearer {token}"}
+
+    async def send_message(self, *, chat_id: str, text: str) -> ChatReply:
         payload = {
             "chat_id": chat_id,
             "text": text,
@@ -38,14 +45,16 @@ class CoreApiClient:
         data = await self._request_with_retries(
             "POST",
             "/chat",
+            headers=self._auth_headers(),
             json=payload,
         )
-        return str(data.get("text") or "Не удалось получить текст ответа от сервиса.")
+        return parse_chat_reply(data)
 
     async def reset_chat(self, *, chat_id: str) -> int:
         data = await self._request_with_retries(
             "POST",
             f"/chat/{chat_id}/reset",
+            headers=self._auth_headers(),
         )
         return int(data.get("deleted_messages") or 0)
 
@@ -68,6 +77,7 @@ class CoreApiClient:
             return await self._request_with_retries(
                 "POST",
                 "/documents",
+                headers=self._auth_headers(),
                 files=files,
             )
 
@@ -75,12 +85,14 @@ class CoreApiClient:
         return await self._request_with_retries(
             "GET",
             f"/indexing-tasks/{task_id}",
+            headers=self._auth_headers(),
         )
 
     async def get_document_status(self, *, document_id: str) -> dict[str, Any]:
         return await self._request_with_retries(
             "GET",
             f"/documents/{document_id}",
+            headers=self._auth_headers(),
         )
 
     async def _request_with_retries(self, method: str, url: str, **kwargs: Any) -> dict[str, Any]:

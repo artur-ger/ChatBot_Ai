@@ -4,6 +4,12 @@
 
 Репозиторий подготовлен так, чтобы команда могла быстро запустить проект локально и развернуть его без лишной ручной настройки.
 
+## Документация состояния проекта
+
+- [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md) — инвентаризация API и модулей
+- [docs/ROLLOUT.md](docs/ROLLOUT.md) — runbook вывода в prod (KB, LLM, smoke, бэкапы)
+- [docs/DEV2_TZ_AUDIT.md](docs/DEV2_TZ_AUDIT.md) — аудит зоны Telegram/worker
+
 ## Что реализовано
 
 - FastAPI-бэкенд с версионированным API (`/api/v1`) и Swagger (`/docs`).
@@ -36,6 +42,8 @@ docker compose up --build
 
 Открыть:
 
+- Чат (пользователи): [http://localhost:8000/](http://localhost:8000/)
+- Админ-панель (KB, LLM, задачи): [http://localhost:8000/admin](http://localhost:8000/admin) — логин/пароль из `.env` (`ADMIN_USERNAME` / `ADMIN_PASSWORD`, создаёт `init-env.ps1`)
 - Swagger: [http://localhost:8000/docs](http://localhost:8000/docs)
 - OpenAPI: [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
 
@@ -85,19 +93,37 @@ docker compose ps
 - `GET http://localhost:8000/healthz` (быстрый liveness)
 - `GET http://localhost:8000/readyz` (готовность зависимостей)
 
+## Docker: типичные ошибки
+
+**`TLS handshake timeout` при `python:3.12-slim`** — Docker Hub недоступен с вашей сети (VPN, firewall). Решения:
+
+1. Включить VPN и один раз: `docker pull python:3.12-slim`, затем `docker compose up -d --build`.
+2. Зеркало в Yandex CR: `.\backend\scripts\push_mirror_images.ps1 -RegistryPrefix "cr.yandex.net/<id>"`, в `.env` задать `PYTHON_BASE_IMAGE=cr.yandex.net/<id>/python:3.12-slim`.
+
+**Предупреждение `TELEGRAM_BOT_TOKEN` не задан** — нормально. Telegram-бот по умолчанию **не** поднимается. Для бота:
+
+```powershell
+# в .env: TELEGRAM_BOT_TOKEN=...
+docker compose --profile telegram up -d --build
+```
+
 ## Полезные команды
 
 ```powershell
-# Полный прогон тестов
+# Первый запуск: .env + docker + smoke
 cd c:\ChatBot_Ai\backend
+.\scripts\init-env.ps1
+.\scripts\deploy.ps1
+# с ботом: .\scripts\deploy.ps1 -WithTelegram
+
+# Go-live после загрузки KB и настройки LLM в /admin
+.\scripts\go-live-checklist.ps1 -AdminUsername admin -AdminPassword "<из .env>"
+
+# Бэкап PostgreSQL
+.\scripts\backup.ps1
+
+# Полный прогон тестов
 poetry run pytest tests/unit tests/integration tests/e2e -q
-
-# Логи API
-cd c:\ChatBot_Ai
-docker compose logs -f backend
-
-# Остановить стек
-docker compose down
 ```
 
 ## Ключевое поведение API

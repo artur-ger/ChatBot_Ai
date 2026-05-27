@@ -1,6 +1,7 @@
 from app.services.llm_client import BaseLlmClient, RuleBasedLlmClient
 from app.services.rag_pipeline import RagPipeline
 from app.services.retriever import BaseRetriever, RetrievedChunk
+from tests.support.llm_factory_stubs import StubLlmFactory
 
 
 class SmokeRetriever(BaseRetriever):
@@ -18,9 +19,11 @@ class FailingLlm(BaseLlmClient):
 
 
 def test_smoke_successful_chat_flow(client):
+    stub_factory = StubLlmFactory(RuleBasedLlmClient(), model_name="rule-based-llm")
+    client.app.state.llm_factory = stub_factory
     client.app.state.rag_pipeline = RagPipeline(
         retriever=SmokeRetriever(),
-        llm_client=RuleBasedLlmClient(),
+        llm_factory=stub_factory,
     )
 
     chat_id = "smoke-1"
@@ -37,9 +40,11 @@ def test_smoke_successful_chat_flow(client):
 
 
 def test_smoke_degradation_when_llm_down(client):
+    stub_factory = StubLlmFactory(FailingLlm(), model_name="failing-llm")
+    client.app.state.llm_factory = stub_factory
     client.app.state.rag_pipeline = RagPipeline(
         retriever=SmokeRetriever(),
-        llm_client=FailingLlm(),
+        llm_factory=stub_factory,
     )
 
     chat_id = "smoke-2"

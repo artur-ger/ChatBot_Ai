@@ -6,14 +6,22 @@ from collections import OrderedDict
 from app.core.config import settings
 from app.core.errors import DependencyAppError, ValidationAppError
 from app.schemas.chat import ChatResponse, SourceItem
-from app.services.llm_client import BaseLlmClient
+from app.services.llm_factory import LlmClientFactory
+from app.services.rag_prompt_defaults import DEFAULT_RAG_SYSTEM_INSTRUCTION
+from app.services.rag_prompt_service import RagPromptService
 from app.services.retriever import BaseRetriever, RetrievedChunk
 
 
 class RagPipeline:
-    def __init__(self, retriever: BaseRetriever, llm_client: BaseLlmClient) -> None:
+    def __init__(
+        self,
+        retriever: BaseRetriever,
+        llm_factory: LlmClientFactory,
+        rag_prompt_service: RagPromptService | None = None,
+    ) -> None:
         self.retriever = retriever
-        self.llm_client = llm_client
+        self.llm_factory = llm_factory
+        self.rag_prompt_service = rag_prompt_service
         self._cache: OrderedDict[str, tuple[float, ChatResponse, list[float]]] = OrderedDict()
         self._llm_failures = 0
         self._circuit_open_until = 0.0
@@ -60,7 +68,10 @@ class RagPipeline:
         question: str,
         chunks: list[RetrievedChunk],
         history: list[tuple[str, str]],
+        *,
+        system_instruction: str | None = None,
     ) -> str:
+        instruction = (system_instruction or DEFAULT_RAG_SYSTEM_INSTRUCTION).strip()
         context = "\n".join([f"[{c.doc_id}] {c.snippet}" for c in chunks[:3]])
         history_lines: list[str] = []
         history_budget = settings.chat_history_max_chars
@@ -72,8 +83,7 @@ class RagPipeline:
             history_budget -= len(line)
         history_block = "\n".join(reversed(history_lines))
         return (
-            "Ты ассистент поддержки. Отвечай только по контексту. "
-            "Если контекста недостаточно, сообщи об этом.\n"
+            f"{instruction}\n"
             f"История (если есть):\n{history_block}\n"
             f"Контекст:\n{context}\n"
             f"Вопрос: {question}"
@@ -124,11 +134,12 @@ class RagPipeline:
         return text, sources
 
     async def _generate_with_retry(self, prompt: str) -> str:
+        llm_context = await self.llm_factory.get_active_context()
         last_error: Exception | None = None
         for _ in range(settings.llm_retry_attempts + 1):
             try:
                 return await asyncio.wait_for(
-                    self.llm_client.generate(prompt),
+                    llm_context.client.generate(prompt),
                     timeout=settings.llm_timeout_seconds,
                 )
             except (TimeoutError, asyncio.TimeoutError, DependencyAppError) as exc:
@@ -169,7 +180,16 @@ class RagPipeline:
             )
             return response, []
 
-        prompt = self.build_prompt(normalized_question, context_chunks, history or [])
+        if self.rag_prompt_service is not None:
+            system_instruction = await self.rag_prompt_service.get_system_instruction()
+        else:
+            system_instruction = DEFAULT_RAG_SYSTEM_INSTRUCTION
+        prompt = self.build_prompt(
+            normalized_question,
+            context_chunks,
+            history or [],
+            system_instruction=system_instruction,
+        )
         if time.time() < self._circuit_open_until:
             response = ChatResponse(
                 text="Сервис генерации временно недоступен. Попробуйте позже.",

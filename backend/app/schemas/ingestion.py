@@ -9,6 +9,19 @@ class IngestAcceptedResponse(BaseModel):
     status: str = Field(pattern="^(pending|processing|indexed|failed)$")
 
 
+class KbArchiveDocumentAccepted(BaseModel):
+    document_id: str
+    task_id: str
+    source_path: str
+    status: str = Field(pattern="^(pending|processing|indexed|failed)$")
+
+
+class KbArchiveImportResponse(BaseModel):
+    accepted: int
+    skipped: int
+    items: list[KbArchiveDocumentAccepted]
+
+
 class IndexingTaskStatusResponse(BaseModel):
     task_id: str
     document_id: str
@@ -70,3 +83,9 @@ class SystemInfoResponse(BaseModel):
     embedding_model_version: str
     use_fake_embeddings: bool
     chroma_mode: str
+    llm_configured: bool
+    llm_using_fallback: bool = False
+    active_llm_integration_id: str | None = None
+    active_llm_provider: str | None = None
+    active_llm_model: str | None = None
+    llm_integrations_count: int = 0

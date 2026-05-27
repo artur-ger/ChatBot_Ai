@@ -108,3 +108,27 @@ class ChromaVectorStore:
             out.append((doc_id, snippet, score, metadata))
 
         return out
+
+    def list_indexed_documents(
+        self,
+        *,
+        embedding_model_version: str,
+    ) -> list[tuple[str, str, dict[str, Any]]]:
+        result = self._collection.get(
+            where={
+                "$and": [
+                    {"doc_status": "indexed"},
+                    {"embedding_model_version": embedding_model_version},
+                ]
+            },
+            include=["documents", "metadatas"],
+        )
+        documents = result.get("documents") or []
+        metadatas = result.get("metadatas") or []
+        rows: list[tuple[str, str, dict[str, Any]]] = []
+        for snippet, raw_metadata in zip(documents, metadatas, strict=False):
+            metadata = dict(raw_metadata) if isinstance(raw_metadata, Mapping) else {}
+            doc_id = str(metadata.get("doc_id", ""))
+            if doc_id and snippet:
+                rows.append((doc_id, snippet, metadata))
+        return rows

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Админ-панель — ChatBot AI</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260526-llm-form" />
+  </head>
+  <body>
+    <div class="bg"></div>
+    <div class="app">
+      <section id="loginScreen" class="card admin-login-card">
+        <h2>Вход в админ-панель</h2>
+        <p class="muted">Логин и пароль (переменные <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code>).</p>
+        <div class="stack">
+          <label for="adminUsernameInput">Admin username</label>
+          <input id="adminUsernameInput" type="text" placeholder="admin" autocomplete="username" />
+          <label for="adminPasswordInput">Admin password</label>
+          <input id="adminPasswordInput" type="password" placeholder="password" autocomplete="current-password" />
+          <button id="loginBtn" type="button">Войти</button>
+        </div>
+        <p class="muted"><a href="/">← К чату</a></p>
+      </section>
+
+      <div id="adminPanel" class="hidden">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">ChatBot AI</p>
+            <h1>Админ-панель</h1>
+            <p id="systemInfo" class="muted"></p>
+            <p id="llmWarning" class="admin-banner hidden"></p>
+          </div>
+          <div class="topbar-actions">
+            <a class="topbar-link" href="/">Чат</a>
+            <button id="logoutBtn" type="button" class="btn-secondary">Выйти</button>
+          </div>
+        </header>
+
+        <main class="layout layout-admin">
+          <section class="card">
+            <div class="section-head">
+              <h2>Промпт RAG</h2>
+              <button id="resetPromptBtn" type="button" class="btn-secondary">По умолчанию</button>
+            </div>
+            <p class="muted">
+              Системная инструкция для модели. Блоки «История», «Контекст» и «Вопрос» добавляются автоматически из базы знаний и чата.
+            </p>
+            <form id="promptForm" class="stack admin-form-block">
+              <label for="systemInstructionInput">Системная инструкция</label>
+              <textarea
+                id="systemInstructionInput"
+                rows="7"
+                required
+                placeholder="Ты ассистент поддержки..."
+              ></textarea>
+              <p id="promptMeta" class="muted"></p>
+              <div class="actions">
+                <button type="submit">Сохранить промпт</button>
+              </div>
+              <p id="promptFormResult" class="muted"></p>
+            </form>
+          </section>
+
+          <section class="card">
+            <div class="section-head">
+              <h2>Интеграции LLM</h2>
+              <button id="refreshLlmBtn" type="button" class="btn-secondary">Обновить</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Название</th>
+                    <th>Провайдер</th>
+                    <th>Модель</th>
+                    <th>Ключ</th>
+                    <th>Вкл.</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="llmTable"></tbody>
+              </table>
+            </div>
+            <form id="llmForm" class="stack admin-form-block">
+              <h3>Добавить / изменить интеграцию</h3>
+              <input id="llmId" type="hidden" />
+              <label for="llmName">Название</label>
+              <input id="llmName" type="text" required />
+              <label for="llmProvider">Провайдер</label>
+              <select id="llmProvider" required>
+                <option value="openai_compatible">OpenAI-compatible</option>
+                <option value="gigachat">GigaChat</option>
+                <option value="rule_based">rule_based (dev)</option>
+              </select>
+              <label for="llmBaseUrl">Base URL</label>
+              <input id="llmBaseUrl" type="url" placeholder="openai: https://api.openai.com/v1 · gigachat: можно оставить пустым" />
+              <label for="llmApiKey">API key / OAuth Basic</label>
+              <input id="llmApiKey" type="password" autocomplete="new-password" placeholder="gigachat: Basic ... из кабинета Sber" />
+              <p id="llmModelsHint" class="muted llm-models-hint">
+                Список моделей появится после выбора провайдера и ввода учётных данных (Base URL — если требуется, и API key).
+              </p>
+              <label for="llmModel">Модель</label>
+              <div class="model-picker-row">
+                <select id="llmModel" required>
+                  <option value="">Сначала загрузите модели</option>
+                </select>
+                <button type="button" id="llmRefreshModelsBtn" class="btn-secondary">Загрузить модели</button>
+              </div>
+              <label class="checkbox-row">
+                <input id="llmEnabled" type="checkbox" checked />
+                Включена
+              </label>
+              <label class="checkbox-row">
+                <input id="llmActivate" type="checkbox" />
+                Сделать активной после сохранения
+              </label>
+              <div class="actions">
+                <button type="submit">Сохранить</button>
+                <button id="llmFormResetBtn" type="button" class="btn-secondary">Очистить форму</button>
+              </div>
+              <p id="llmFormResult" class="muted"></p>
+            </form>
+          </section>
+
+          <section class="card upload-card">
+            <div class="section-head">
+              <h2>Загрузка базы знаний</h2>
+            </div>
+            <form id="uploadForm" class="stack">
+              <input id="fileInput" type="file" accept=".txt,.md,.markdown,.pdf,.docx,.zip" required />
+              <button type="submit">Загрузить документ / KB archive</button>
+            </form>
+            <p id="uploadResult" class="muted"></p>
+          </section>
+
+          <section class="card docs-card">
+            <div class="section-head">
+              <h2>Документы</h2>
+              <button id="refreshDocsBtn" type="button" class="btn-secondary">Обновить</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Файл</th>
+                    <th>Тип</th>
+                    <th>Статус</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="docsTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card tasks-card">
+            <div class="section-head">
+              <h2>Задачи индексации</h2>
+              <button id="refreshTasksBtn" type="button" class="btn-secondary">Обновить</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Task ID</th>
+                    <th>Document ID</th>
+                    <th>Статус</th>
+                    <th>Celery</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="tasksTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="/static/common.js?v=20260526-admin-auth"></script>
+    <script src="/static/admin.js?v=20260526-llm-form-ux"></script>
+  </body>
+</html>

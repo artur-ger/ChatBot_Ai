@@ -21,6 +21,7 @@ from app.schemas.chat import (
     ChatResponse,
     ErrorResponse,
 )
+from app.services.llm_factory import LlmClientFactory, LlmNotConfiguredError
 from app.services.rag_pipeline import RagPipeline
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -29,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 def get_pipeline(request: Request) -> RagPipeline:
     return cast(RagPipeline, request.app.state.rag_pipeline)
+
+
+def get_llm_factory(request: Request) -> LlmClientFactory:
+    return cast(LlmClientFactory, request.app.state.llm_factory)
 
 
 @router.post(
@@ -42,11 +47,13 @@ async def chat(
     payload: ChatRequest,
     x_chat_signature: str | None = Header(default=None, alias="X-Chat-Signature"),
     pipeline: RagPipeline = Depends(get_pipeline),
+    llm_factory: LlmClientFactory = Depends(get_llm_factory),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> ChatResponse | JSONResponse:
     try:
         if not settings.chat_acl_disabled:
             verify_chat_access(chat_id=payload.chat_id, provided_signature=x_chat_signature)
+        llm_context = await llm_factory.get_active_context()
         repository = ChatRepository(db_session)
         history_rows = await repository.list_recent_messages(
             payload.chat_id,
@@ -80,6 +87,15 @@ async def chat(
             )
         )
         return response
+    except LlmNotConfiguredError as exc:
+        return JSONResponse(
+            status_code=503,
+            content=ErrorResponse(
+                error_code=exc.error_code,
+                message=exc.message,
+                retry_allowed=exc.retry_allowed,
+            ).model_dump(),
+        )
     except AppError as exc:
         logger.warning("Application error: %s", exc.message)
         status_code = 400 if exc.error_code == "validation_error" else 503

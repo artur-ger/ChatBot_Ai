@@ -31,6 +31,28 @@ def test_generate_rule_based_answer_from_prompt():
     assert "пополн" not in answer.casefold()
 
 
+def test_extract_relevant_excerpt_trims_incomplete_tail():
+    from app.services.rag_answer_extract import extract_relevant_excerpt
+
+    snippet = (
+        "Возможные варианты учета ЦФА в зависимости от срока обращения у инвестора: "
+        "по счету 06 (если срок обращения ЦФА превышает 12 месяцев); "
+        "по счету 58 (если срок обращения ЦФА меньше 12 месяцев). "
+        "Возможные варианты учета ЦФА в зависимости от срока обращения у эмитента: "
+        "по счету 67 (на срок более 12 месяцев). "
+        "Если целью приобретения ЦФА инвестором является их дальнейшая продажа, "
+        "то они могут учитываться: по дебету счета 41 «Товары»; по кредиту счета 60 «Расчеты с по"
+    )
+    answer = extract_relevant_excerpt(
+        "Какие варианты учета ЦФА в зависимости от срока обращения у инвестора",
+        snippet,
+    )
+    assert answer.endswith("…")
+    assert "67" in answer
+    assert "41" not in answer
+    assert "Расчеты с по" not in answer
+
+
 def test_generate_rule_based_answer_raises_on_llm_down_marker():
     from app.core.errors import DependencyAppError
 

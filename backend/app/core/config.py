@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     embedding_model_version: str = Field(default="all-MiniLM-L6-v2")
     use_fake_embeddings: bool = Field(default=False)
 
-    chunk_size: int = Field(default=900)
-    chunk_overlap: int = Field(default=120)
+    chunk_size: int = Field(default=1400)
+    chunk_overlap: int = Field(default=160)
 
     retriever_top_k: int = 5
     min_chunk_score: float = 0.25

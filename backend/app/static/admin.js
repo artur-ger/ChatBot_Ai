@@ -6,6 +6,7 @@ const loginBtn = document.getElementById("loginBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const systemInfoEl = document.getElementById("systemInfo");
 const llmWarningEl = document.getElementById("llmWarning");
+const kbIndexWarningEl = document.getElementById("kbIndexWarning");
 
 const uploadForm = document.getElementById("uploadForm");
 const fileInput = document.getElementById("fileInput");
@@ -237,7 +238,18 @@ async function loadSystemInfo() {
       `интеграций: ${info.llm_integrations_count}`,
       `embedding: ${info.embedding_model_version}`,
       `fake embeddings: ${info.use_fake_embeddings}`,
+      `KB: ${info.kb_indexed_documents} indexed / ${info.kb_chroma_chunks} chunks (${info.kb_index_state})`,
     ].join(" · ");
+
+    if (kbIndexWarningEl) {
+      if (info.kb_index_state === "stale" && info.kb_index_message) {
+        kbIndexWarningEl.textContent = info.kb_index_message;
+        kbIndexWarningEl.classList.remove("hidden");
+      } else {
+        kbIndexWarningEl.textContent = "";
+        kbIndexWarningEl.classList.add("hidden");
+      }
+    }
 
     if (llmWarningEl) {
       if (info.llm_using_fallback || info.active_llm_provider === "rule_based") {

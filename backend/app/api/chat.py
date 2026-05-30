@@ -21,6 +21,7 @@ from app.schemas.chat import (
     ChatResponse,
     ErrorResponse,
 )
+from app.services.chat_presenter import present_chat_response, sanitize_user_answer_text
 from app.services.llm_factory import LlmClientFactory, LlmNotConfiguredError
 from app.services.rag_pipeline import RagPipeline
 
@@ -86,7 +87,7 @@ async def chat(
                 embedding_model_version=settings.embedding_model_version,
             )
         )
-        return response
+        return present_chat_response(response)
     except LlmNotConfiguredError as exc:
         return JSONResponse(
             status_code=503,
@@ -149,8 +150,8 @@ async def chat_history(
         ChatHistoryItem(
             id=row.id,
             question=row.question,
-            answer=row.answer,
-            confidence=row.confidence,
+            answer=sanitize_user_answer_text(row.answer),
+            confidence=0.0,
             created_at=row.created_at.isoformat(),
         )
         for row in rows

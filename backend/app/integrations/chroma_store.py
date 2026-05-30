@@ -65,6 +65,16 @@ class ChromaVectorStore:
     def delete_document_chunks(self, doc_id: str) -> None:
         self._collection.delete(where={"doc_id": doc_id})
 
+    def has_document_chunks(self, doc_id: str) -> bool:
+        result = self._collection.get(where={"doc_id": doc_id}, include=[])
+        return bool(result.get("ids"))
+
+    def count_chunks(self, *, embedding_model_version: str | None = None) -> int:
+        # Collection name is already scoped by embedding_model_version (kb_{version}).
+        # Chroma 1.5.x Collection.count() does not accept a where filter.
+        _ = embedding_model_version
+        return int(self._collection.count())
+
     def query(
         self,
         *,

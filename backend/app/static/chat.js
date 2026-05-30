@@ -40,21 +40,11 @@ function getChatId() {
   return getOrCreateChatId();
 }
 
-function appendMessage(role, text, sources = [], confidence = null) {
+function appendMessage(role, text) {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
   const title = role === "user" ? "Вы" : "Бот";
-  const src = sources.length
-    ? `\n\nИсточники:\n${sources
-        .slice(0, 3)
-        .map((s) => `- [${s.doc_id}] ${String(s.snippet || "").slice(0, 120)}`)
-        .join("\n")}`
-    : "";
-  const conf =
-    role === "assistant" && typeof confidence === "number" && confidence > 0
-      ? `\n\nУверенность: ${confidence.toFixed(2)}`
-      : "";
-  wrap.textContent = `${title}: ${text}${src}${conf}`;
+  wrap.textContent = `${title}: ${text}`;
   messages.appendChild(wrap);
   messages.scrollTop = messages.scrollHeight;
 }
@@ -75,7 +65,7 @@ async function sendChatMessage(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, chat_id: chatId }),
     });
-    appendMessage("assistant", data.text, data.sources || [], data.confidence);
+    appendMessage("assistant", data.text);
   } catch (error) {
     appendMessage("assistant", `Ошибка: ${error.message}`);
   }

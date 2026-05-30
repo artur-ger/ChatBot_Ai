@@ -76,6 +76,14 @@ class TaskListResponse(BaseModel):
     items: list[IndexingTaskStatusResponse]
 
 
+class KbIndexHealthResponse(BaseModel):
+    state: str
+    indexed_documents: int
+    chroma_chunks: int
+    embedding_model_version: str
+    message: str | None = None
+
+
 class SystemInfoResponse(BaseModel):
     app_name: str
     api_prefix: str
@@ -89,3 +97,7 @@ class SystemInfoResponse(BaseModel):
     active_llm_provider: str | None = None
     active_llm_model: str | None = None
     llm_integrations_count: int = 0
+    kb_index_state: str = "ok"
+    kb_indexed_documents: int = 0
+    kb_chroma_chunks: int = 0
+    kb_index_message: str | None = None

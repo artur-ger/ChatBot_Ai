@@ -33,10 +33,4 @@ def format_sources_block(sources: list[dict[str, Any]], *, max_items: int = 3, s
 
 
 def format_chat_message(reply: ChatReply) -> str:
-    body = reply.text.strip()
-    sources_block = format_sources_block(reply.sources)
-    if sources_block:
-        body = f"{body}{sources_block}"
-    if reply.confidence > 0:
-        body = f"{body}\n\nУверенность: {reply.confidence:.2f}"
-    return body
+    return reply.text.strip()

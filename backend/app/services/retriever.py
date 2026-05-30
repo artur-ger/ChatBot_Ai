@@ -10,6 +10,7 @@ from app.services.retrieval_rerank import (
     heading_match_score,
     is_priority_instruction_chunk,
     lexical_overlap_score,
+    phrase_in_text_score,
 )
 
 
@@ -44,11 +45,13 @@ def rerank_retrieved_chunks(
         lexical = lexical_overlap_score(query, chunk.snippet)
         full_match = all_terms_match_score(query, chunk.snippet)
         heading = heading_match_score(query, chunk.snippet)
+        phrase = phrase_in_text_score(query, chunk.snippet)
         combined = (
             vector_weight * chunk.score
             + lexical_weight * lexical
             + 0.15 * full_match
             + 0.35 * heading
+            + 0.30 * phrase
         )
         combined = min(combined, 1.0)
         ranked.append(
@@ -78,6 +81,7 @@ def _supplement_with_lexical_matches(
 
     if chunks and (
         heading_match_score(query, chunks[0].snippet) >= 0.85
+        or phrase_in_text_score(query, chunks[0].snippet) >= 0.45
         or is_priority_instruction_chunk(query, chunks[0].doc_id, chunks[0].snippet)
     ):
         return chunks
@@ -85,17 +89,27 @@ def _supplement_with_lexical_matches(
     seen = {(chunk.doc_id, chunk.snippet) for chunk in chunks}
     extras: list[RetrievedChunk] = []
     for doc_id, snippet, metadata in indexed_documents:
-        if not is_priority_instruction_chunk(query, doc_id, snippet):
+        phrase = phrase_in_text_score(query, snippet)
+        if not (
+            is_priority_instruction_chunk(query, doc_id, snippet)
+            or phrase >= 0.35
+            or all_terms_match_score(query, snippet) >= 0.75
+        ):
             continue
         key = (doc_id, snippet)
         if key in seen:
             continue
         seen.add(key)
+        relevance = max(
+            phrase,
+            heading_match_score(query, snippet),
+            all_terms_match_score(query, snippet),
+        )
         extras.append(
             RetrievedChunk(
                 doc_id=doc_id,
                 snippet=snippet,
-                score=min(0.95, 0.75 + heading_match_score(query, snippet) * 0.2),
+                score=min(0.97, 0.72 + relevance * 0.25),
                 doc_type=str(metadata.get("doc_type", "")) or None,
                 document_date=str(metadata.get("created_at", "")) or None,
             )

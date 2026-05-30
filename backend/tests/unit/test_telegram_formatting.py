@@ -40,7 +40,7 @@ def test_format_chat_message() -> None:
             confidence=0.75,
         )
     )
-    assert "Готово" in message
-    assert "[doc-1]" in message
-    assert "0.75" in message
+    assert message == "Готово"
+    assert "[doc-1]" not in message
+    assert "0.75" not in message
 

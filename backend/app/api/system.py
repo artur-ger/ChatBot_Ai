@@ -12,7 +12,8 @@ from app.core.limiter import limiter
 from app.db.session import SessionLocal
 from app.repositories.llm_integration_repository import LlmIntegrationRepository
 from app.schemas.chat import ErrorResponse
-from app.schemas.ingestion import SystemInfoResponse
+from app.schemas.ingestion import KbIndexHealthResponse, SystemInfoResponse
+from app.services.kb_index_health import get_kb_index_status
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,8 @@ async def system_info(request: Request) -> SystemInfoResponse:
 
     llm_configured = active_id is not None or settings.llm_allow_rule_based_fallback
     llm_using_fallback = active_id is None and settings.llm_allow_rule_based_fallback
+
+    kb_index = await get_kb_index_status()
     return SystemInfoResponse(
         app_name=settings.app_name,
         api_prefix=settings.api_prefix,
@@ -91,4 +94,21 @@ async def system_info(request: Request) -> SystemInfoResponse:
         active_llm_provider=active_provider,
         active_llm_model=active_model,
         llm_integrations_count=integrations_count,
+        kb_index_state=kb_index.state,
+        kb_indexed_documents=kb_index.indexed_documents,
+        kb_chroma_chunks=kb_index.chroma_chunks,
+        kb_index_message=kb_index.message,
+    )
+
+
+@router.get("/system/kb-index", response_model=KbIndexHealthResponse)
+@limiter.limit(settings.rate_limit_default)
+async def kb_index_health(request: Request) -> KbIndexHealthResponse:
+    status = await get_kb_index_status(force=True)
+    return KbIndexHealthResponse(
+        state=status.state,
+        indexed_documents=status.indexed_documents,
+        chroma_chunks=status.chroma_chunks,
+        embedding_model_version=status.embedding_model_version,
+        message=status.message,
     )

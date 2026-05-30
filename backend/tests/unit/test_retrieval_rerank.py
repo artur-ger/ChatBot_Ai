@@ -42,3 +42,26 @@ def test_rerank_swaps_wrong_vector_order():
     ]
     reranked = rerank_retrieved_chunks("как восстановить доступ?", chunks)
     assert reranked[0].doc_id == "instructions.access_to_personal_account"
+
+
+def test_rerank_prefers_phrase_match_over_vector_score():
+    chunks = [
+        RetrievedChunk(
+            doc_id="books.accounting",
+            snippet="скрыть в отчетности выбранный способ учета ЦФА",
+            score=0.91,
+        ),
+        RetrievedChunk(
+            doc_id="books.accounting",
+            snippet=(
+                "Возможные варианты учета ЦФА в зависимости от срока обращения у инвестора: "
+                "по счету 06 и 58."
+            ),
+            score=0.84,
+        ),
+    ]
+    reranked = rerank_retrieved_chunks(
+        "Какие варианты учета ЦФА в зависимости от срока обращения у инвестора",
+        chunks,
+    )
+    assert "06" in reranked[0].snippet

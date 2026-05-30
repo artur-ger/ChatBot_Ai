@@ -1,3 +1,6 @@
+from unittest.mock import AsyncMock, patch
+
+from app.services.kb_index_health import KbIndexStatus
 from app.services.llm_client import BaseLlmClient
 from app.services.rag_pipeline import RagPipeline
 from app.services.retriever import BaseRetriever, RetrievedChunk
@@ -21,17 +24,29 @@ def test_chat_endpoint_contract_shape(client):
         retriever=IntegrationRetriever(),
         llm_factory=stub_factory,
     )
+    kb_ok = KbIndexStatus(
+        state="ok",
+        indexed_documents=1,
+        chroma_chunks=1,
+        embedding_model_version="test",
+        message=None,
+    )
 
     chat_id = "chat-int"
-    response = client.post(
-        "/api/v1/chat",
-        json={"text": "Тестовый вопрос", "chat_id": chat_id},
-    )
+    with patch(
+        "app.services.rag_pipeline.get_kb_index_status",
+        new=AsyncMock(return_value=kb_ok),
+    ):
+        response = client.post(
+            "/api/v1/chat",
+            json={"text": "Тестовый вопрос", "chat_id": chat_id},
+        )
     payload = response.json()
 
     assert response.status_code == 200
     assert set(payload.keys()) == {"text", "sources", "confidence", "chat_id"}
     assert payload["chat_id"] == chat_id
     assert isinstance(payload["sources"], list)
-    assert payload["sources"][0]["doc_id"] == "doc-int"
-    assert payload["sources"][0]["doc_type"] is None
+    assert payload["sources"] == []
+    assert payload["confidence"] == 0.0
+    assert payload["text"] == "Интеграционный ответ"

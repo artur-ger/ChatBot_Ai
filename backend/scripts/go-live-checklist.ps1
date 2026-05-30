@@ -64,6 +64,17 @@ Check "active LLM integration" {
     Write-Host "       active: $($r.active_llm_provider) / $($r.active_llm_model)"
 }
 
+Check "KB index in sync" {
+    $r = Invoke-RestMethod -Uri "$BaseUrl/system/kb-index"
+    if ($r.state -eq "stale") {
+        throw "Postgres indexed=$($r.indexed_documents) but Chroma chunks=$($r.chroma_chunks). Run reindex in /admin"
+    }
+    if ($r.state -eq "empty") {
+        throw "KB empty: $($r.message)"
+    }
+    Write-Host "       indexed=$($r.indexed_documents) chroma_chunks=$($r.chroma_chunks)"
+}
+
 Check "indexed documents exist" {
     $auth = Get-AdminHeaders
     if (-not $auth) { throw "pass -AdminToken or -AdminUsername/-AdminPassword" }

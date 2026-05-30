@@ -6,6 +6,7 @@ from app.services.retrieval_rerank import (
     all_terms_match_score,
     heading_match_score,
     lexical_overlap_score,
+    significant_query_phrases,
 )
 
 _QUESTION_MARKER = "Вопрос:"
@@ -58,9 +59,72 @@ def extract_faq_answer(question: str, text: str) -> str | None:
 
 def _normalize_answer(text: str) -> str:
     cleaned = re.sub(r"\s+", " ", text).strip()
+    cleaned = _trim_incomplete_tail(cleaned)
     if len(cleaned) > 1800:
-        cleaned = cleaned[:1799].rstrip() + "…"
+        cleaned = _truncate_at_sentence_boundary(cleaned, 1800)
     return cleaned
+
+
+def _ends_complete_sentence(text: str) -> bool:
+    return bool(re.search(r'(?:[.!?»][\s"»)]*|\)\.)$', text.strip()))
+
+
+def _trim_incomplete_tail(text: str) -> str:
+    cleaned = text.strip()
+    if not cleaned or cleaned.endswith("…"):
+        return cleaned
+    if _ends_complete_sentence(cleaned):
+        return cleaned
+    if cleaned.count("«") > cleaned.count("»"):
+        for match in reversed(list(re.finditer(r"\)\.\s+", cleaned))):
+            end = match.start() + 2
+            if end > len(cleaned) * 0.35:
+                return cleaned[:end].strip() + "…"
+        for match in reversed(list(re.finditer(r"\.\s+", cleaned))):
+            end = match.start() + 1
+            if end > len(cleaned) * 0.35:
+                return cleaned[:end].strip() + "…"
+        cut = cleaned.rfind("; ")
+        if cut > len(cleaned) * 0.35:
+            return cleaned[: cut + 1].rstrip() + "…"
+    for match in reversed(list(re.finditer(r"[.!?](?:\s|$|»)", cleaned))):
+        end = match.end()
+        if end > len(cleaned) * 0.35:
+            return cleaned[:end].strip() + "…"
+    return cleaned + "…"
+
+
+def _truncate_at_sentence_boundary(text: str, max_len: int) -> str:
+    if len(text) <= max_len:
+        return text
+    excerpt = text[: max_len - 1].rstrip()
+    for match in reversed(list(re.finditer(r"[.!?;](?:\s|$|»)", excerpt))):
+        end = match.end()
+        if end > max_len * 0.5:
+            return excerpt[:end].strip() + "…"
+    return excerpt + "…"
+
+
+def extract_relevant_excerpt(question: str, snippet: str, *, max_len: int = 1800) -> str:
+    text = re.sub(r"\s+", " ", snippet).strip()
+    lower = text.casefold()
+    for phrase in significant_query_phrases(question):
+        idx = lower.find(phrase)
+        if idx >= 0:
+            start = max(0, idx)
+            remainder = text[start:]
+            if len(remainder) <= max_len:
+                excerpt = remainder
+                suffix_ellipsis = False
+            else:
+                excerpt = remainder[:max_len].strip()
+                suffix_ellipsis = True
+            if start > 0:
+                excerpt = "…" + excerpt
+            if suffix_ellipsis:
+                excerpt = _truncate_at_sentence_boundary(excerpt, max_len + 1)
+            return _normalize_answer(excerpt)
+    return _trim_snippet(question, snippet)
 
 
 def _trim_snippet(question: str, snippet: str) -> str:
@@ -108,20 +172,20 @@ def generate_rule_based_answer(prompt: str) -> str:
         ),
         reverse=True,
     )
-    best_doc_id, best_snippet = ranked[0]
+    _, best_snippet = ranked[0]
     best_heading = heading_match_score(question, best_snippet)
     best_match = all_terms_match_score(question, best_snippet)
     best_lexical = lexical_overlap_score(question, best_snippet)
 
     if best_heading >= 0.85 or best_match >= 0.75 or best_lexical >= 0.5:
-        return f"{_trim_snippet(question, best_snippet)}\n\n[{best_doc_id}]"
+        return extract_relevant_excerpt(question, best_snippet)
 
     combined_context = "\n".join(snippet for _, snippet in chunks)
     faq_answer = extract_faq_answer(question, combined_context)
     if faq_answer:
-        return f"{faq_answer}\n\n[{best_doc_id}]"
+        return faq_answer
 
     if best_lexical >= 0.25:
-        return f"{_trim_snippet(question, best_snippet)}\n\n[{best_doc_id}]"
+        return extract_relevant_excerpt(question, best_snippet)
 
     return "Недостаточно данных в базе знаний по вашему вопросу."

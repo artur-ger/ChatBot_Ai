@@ -102,3 +102,41 @@ def is_priority_instruction_chunk(query: str, doc_id: str, snippet: str) -> bool
 
 def distinctive_terms(query: str) -> list[str]:
     return _query_terms(query)
+
+
+def significant_query_phrases(query: str) -> list[str]:
+    terms = _query_terms(query)
+    phrases: list[str] = []
+    for start in range(len(terms)):
+        for end in range(start + 2, min(start + 7, len(terms) + 1)):
+            phrase = " ".join(terms[start:end])
+            if len(phrase) >= 8:
+                phrases.append(phrase)
+    return sorted(set(phrases), key=len, reverse=True)
+
+
+def phrase_in_text_score(query: str, text: str) -> float:
+    text_cf = text.casefold()
+    best = 0.0
+    for phrase in significant_query_phrases(query):
+        if phrase in text_cf:
+            best = max(best, min(1.0, len(phrase) / 36))
+    if best:
+        return best
+
+    terms = _query_terms(query)
+    if len(terms) < 3:
+        return 0.0
+    hits = 0
+    cursor = 0
+    for term in terms:
+        idx = text_cf.find(term, cursor)
+        if idx == -1 and len(term) >= 5:
+            idx = text_cf.find(term[:5], cursor)
+        if idx == -1:
+            break
+        hits += 1
+        cursor = idx + max(1, len(term) - 2)
+    if hits >= 3:
+        return min(1.0, hits / len(terms) * 0.85)
+    return 0.0

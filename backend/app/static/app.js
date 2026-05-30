@@ -26,14 +26,11 @@ function showToast(text, isError = false) {
   setTimeout(() => toast.classList.add("hidden"), 2800);
 }
 
-function appendMessage(role, text, sources = []) {
+function appendMessage(role, text) {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
   const title = role === "user" ? "Вы" : "Бот";
-  const src = sources.length
-    ? `\nИсточники:\n${sources.map((s) => `- ${s.doc_id}: ${s.snippet.slice(0, 120)}`).join("\n")}`
-    : "";
-  wrap.textContent = `${title}: ${text}${src}`;
+  wrap.textContent = `${title}: ${text}`;
   messages.appendChild(wrap);
   messages.scrollTop = messages.scrollHeight;
 }
@@ -69,7 +66,7 @@ async function sendChatMessage(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, chat_id: chatId }),
     });
-    appendMessage("assistant", data.text, data.sources || []);
+    appendMessage("assistant", data.text);
   } catch (error) {
     appendMessage("assistant", `Ошибка: ${error.message}`);
   }

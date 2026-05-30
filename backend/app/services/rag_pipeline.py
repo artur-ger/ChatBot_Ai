@@ -7,6 +7,14 @@ from app.core.config import settings
 from app.core.errors import DependencyAppError, ValidationAppError
 from app.schemas.chat import ChatResponse, SourceItem
 from app.services.llm_factory import LlmClientFactory
+from app.services.chat_presenter import sanitize_user_answer_text
+from app.services.kb_index_health import get_kb_index_status
+from app.services.rag_grounding import (
+    INSUFFICIENT_ANSWER_TEXT,
+    extract_grounded_answer,
+    is_likely_hallucination,
+    should_use_extractive_answer,
+)
 from app.services.rag_prompt_defaults import DEFAULT_RAG_SYSTEM_INSTRUCTION
 from app.services.rag_prompt_service import RagPromptService
 from app.services.retriever import BaseRetriever, RetrievedChunk
@@ -84,6 +92,10 @@ class RagPipeline:
         history_block = "\n".join(reversed(history_lines))
         return (
             f"{instruction}\n"
+            "Правила ответа:\n"
+            "- Используй только факты из блока «Контекст».\n"
+            "- Не добавляй методы, термины и рекомендации, которых нет в контексте.\n"
+            f"- Если ответа в контексте нет, напиши дословно: «{INSUFFICIENT_ANSWER_TEXT}»\n"
             f"История (если есть):\n{history_block}\n"
             f"Контекст:\n{context}\n"
             f"Вопрос: {question}"
@@ -120,18 +132,13 @@ class RagPipeline:
         while len(self._cache) > settings.chat_cache_max_items:
             self._cache.popitem(last=False)
 
+    def _sanitize_answer_text(self, text: str) -> str:
+        return sanitize_user_answer_text(text)
+
     def _postprocess_answer(
         self, text: str, sources: list[SourceItem]
     ) -> tuple[str, list[SourceItem]]:
-        referenced_ids = {match.strip() for match in re.findall(r"\[([A-Za-z0-9_-]+)\]", text)}
-        if referenced_ids:
-            filtered = [source for source in sources if source.doc_id in referenced_ids]
-            if filtered:
-                return text, filtered
-        if sources:
-            refs = ", ".join(f"[{source.doc_id}]" for source in sources)
-            return f"{text}\n\nИсточники: {refs}", sources
-        return text, sources
+        return self._sanitize_answer_text(text), sources
 
     async def _generate_with_retry(self, prompt: str) -> str:
         llm_context = await self.llm_factory.get_active_context()
@@ -157,6 +164,16 @@ class RagPipeline:
         if cached is not None:
             return cached
 
+        kb_index = await get_kb_index_status()
+        if not kb_index.is_searchable and kb_index.message:
+            response = ChatResponse(
+                text=kb_index.message,
+                sources=[],
+                confidence=0.0,
+                chat_id=chat_id,
+            )
+            return response, []
+
         chunks = await self.retriever.retrieve(normalized_question, settings.retriever_top_k)
         context_chunks = self.filter_and_deduplicate(chunks)
         confidence = self.calculate_confidence(context_chunks)
@@ -170,6 +187,7 @@ class RagPipeline:
             for chunk in context_chunks[:3]
         ]
         retrieval_scores = [chunk.score for chunk in context_chunks[:3]]
+        context_text = "\n".join(chunk.snippet for chunk in context_chunks[:3])
 
         if not context_chunks:
             response = ChatResponse(
@@ -179,6 +197,23 @@ class RagPipeline:
                 chat_id=chat_id,
             )
             return response, []
+
+        if should_use_extractive_answer(normalized_question, context_chunks):
+            extracted = extract_grounded_answer(normalized_question, context_chunks)
+            if extracted:
+                response = ChatResponse(
+                    text=self._sanitize_answer_text(extracted),
+                    sources=sources,
+                    confidence=confidence,
+                    chat_id=chat_id,
+                )
+                self._set_cache(
+                    chat_id=chat_id,
+                    question=normalized_question,
+                    response=response,
+                    retrieval_scores=retrieval_scores,
+                )
+                return response, retrieval_scores
 
         if self.rag_prompt_service is not None:
             system_instruction = await self.rag_prompt_service.get_system_instruction()
@@ -215,6 +250,10 @@ class RagPipeline:
             return response, retrieval_scores
 
         final_text, final_sources = self._postprocess_answer(text, sources)
+        if is_likely_hallucination(final_text, context_text):
+            extracted = extract_grounded_answer(normalized_question, context_chunks)
+            final_text = extracted or INSUFFICIENT_ANSWER_TEXT
+            final_text = self._sanitize_answer_text(final_text)
         response = ChatResponse(
             text=final_text,
             sources=final_sources,

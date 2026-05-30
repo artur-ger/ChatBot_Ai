@@ -22,6 +22,7 @@ from app.models.webhook_subscription import WebhookSubscription
 from app.services.embedding_factory import get_embedding_service
 from app.services.text_chunking import chunk_text
 from app.services.text_extract import extract_text_from_file
+from app.services.kb_index_health import clear_kb_index_status_cache
 from app.workers.async_runner import run_async
 from app.workers.celery_app import celery_app
 
@@ -122,6 +123,10 @@ async def _index_document_async(document_id: str, task_id: str) -> None:
 
             vector_store.delete_document_chunks(document.id)
             vector_store.upsert_chunks(upsert_items)
+            if not vector_store.has_document_chunks(document.id):
+                raise RuntimeError(
+                    "Chroma upsert verification failed: no chunks persisted for document"
+                )
 
             await session.execute(
                 update(Document)
@@ -146,6 +151,7 @@ async def _index_document_async(document_id: str, task_id: str) -> None:
 
             await session.commit()
             shutil.rmtree(path.parent, ignore_errors=True)
+            clear_kb_index_status_cache()
 
         except Exception as exc:
             await session.execute(
@@ -235,3 +241,4 @@ def reindex_documents(self: Task, from_embedding_version: str, to_embedding_vers
         new_task_id = uuid.uuid4().hex
         run_async(_enqueue(document_id, new_task_id))
         run_async(_index_document_async(document_id, new_task_id))
+    clear_kb_index_status_cache()

@@ -40,6 +40,54 @@ const resetPromptBtn = document.getElementById("resetPromptBtn");
 
 const toast = document.getElementById("toast");
 
+const ADMIN_TAB_KEY = "chatbot_admin_tab";
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function switchAdminTab(tabId) {
+  const buttons = document.querySelectorAll("[data-admin-tab]");
+  const panels = document.querySelectorAll(".admin-tab-panel");
+  buttons.forEach((button) => {
+    const isActive = button.dataset.adminTab === tabId;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  panels.forEach((panel) => {
+    const isActive = panel.id === `adminTab${tabId.charAt(0).toUpperCase()}${tabId.slice(1)}`;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
+  });
+  try {
+    sessionStorage.setItem(ADMIN_TAB_KEY, tabId);
+  } catch {
+    /* ignore */
+  }
+}
+
+function initAdminTabs() {
+  document.querySelectorAll("[data-admin-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      switchAdminTab(button.dataset.adminTab || "prompt");
+    });
+  });
+  let initialTab = "prompt";
+  try {
+    initialTab = sessionStorage.getItem(ADMIN_TAB_KEY) || "prompt";
+  } catch {
+    /* ignore */
+  }
+  if (!["prompt", "llm", "kb"].includes(initialTab)) {
+    initialTab = "prompt";
+  }
+  switchAdminTab(initialTab);
+}
+
 let statusPollTimer = null;
 let lastDocsSnapshot = "";
 let lastTasksSnapshot = "";
@@ -337,12 +385,13 @@ async function loadDocuments(options = {}) {
     docsTable.innerHTML = "";
     data.items.forEach((item) => {
       const tr = document.createElement("tr");
+      const filename = escapeHtml(item.original_filename);
       tr.innerHTML = `
-        <td>${item.document_id}</td>
-        <td>${item.original_filename}</td>
-        <td>${item.doc_type}</td>
-        <td>${statusChip(item.status)}</td>
-        <td><button data-doc-id="${item.document_id}" class="danger js-delete-doc">Удалить</button></td>
+        <td><span class="table-id">${item.document_id}</span></td>
+        <td class="cell-filename" title="${filename}">${filename}</td>
+        <td class="cell-type">${escapeHtml(item.doc_type)}</td>
+        <td class="cell-status">${statusChip(item.status)}</td>
+        <td class="actions-cell"><button data-doc-id="${item.document_id}" class="danger btn-sm js-delete-doc">Удалить</button></td>
       `;
       docsTable.appendChild(tr);
     });
@@ -381,13 +430,13 @@ async function loadTasks(options = {}) {
       const canCancel = item.status !== "indexed" && item.status !== "cancelled";
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${item.task_id}</td>
-        <td>${item.document_id}</td>
+        <td><span class="table-id">${item.task_id}</span></td>
+        <td><span class="table-id">${item.document_id}</span></td>
         <td>${statusChip(item.status)}</td>
-        <td>${item.celery_status || "-"}</td>
-        <td>
-          <button data-task-id="${item.task_id}" class="btn-secondary js-retry-task" ${canRetry ? "" : "disabled"}>Retry</button>
-          <button data-task-id="${item.task_id}" class="danger js-cancel-task" ${canCancel ? "" : "disabled"}>Cancel</button>
+        <td>${item.celery_status || "—"}</td>
+        <td class="actions-cell">
+          <button data-task-id="${item.task_id}" class="btn-secondary btn-sm js-retry-task" ${canRetry ? "" : "disabled"}>Повтор</button>
+          <button data-task-id="${item.task_id}" class="danger btn-sm js-cancel-task" ${canCancel ? "" : "disabled"}>Отмена</button>
         </td>
       `;
       tasksTable.appendChild(tr);
@@ -404,7 +453,7 @@ async function loadTasks(options = {}) {
 async function retryTask(taskId) {
   try {
     await fetchAdminJson(`${apiPrefix}/indexing-tasks/${encodeURIComponent(taskId)}/retry`, { method: "POST" });
-    showToast(toast, "Retry отправлен");
+    showToast(toast, "Повторная индексация запущена");
     await loadTasks();
   } catch (error) {
     showToast(toast, `Ошибка retry: ${error.message}`, true);
@@ -797,4 +846,5 @@ llmTable.addEventListener("click", (event) => {
 renderProviderOptions(LLM_PROVIDER_FALLBACKS, llmProviderInput.value || "openai_compatible");
 setLlmModelOptions([], "", "pending");
 updateProviderFormHints();
+initAdminTabs();
 verifyAdminSession();

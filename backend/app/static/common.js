@@ -16,13 +16,19 @@ function clearAdminToken() {
 function showToast(toastEl, text, isError = false) {
   if (!toastEl) return;
   toastEl.textContent = text;
-  toastEl.classList.remove("hidden");
-  toastEl.style.background = isError ? "#991b1b" : "#1f2937";
-  setTimeout(() => toastEl.classList.add("hidden"), 2800);
+  toastEl.classList.remove("hidden", "toast-error");
+  if (isError) {
+    toastEl.classList.add("toast-error");
+  }
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => {
+    toastEl.classList.add("hidden");
+  }, 3200);
 }
 
 function statusChip(status) {
-  return `<span class="status-chip status-${String(status).toLowerCase()}">${status}</span>`;
+  const safe = String(status).toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  return `<span class="status-chip status-${safe}">${status}</span>`;
 }
 
 async function fetchJson(url, options = {}) {

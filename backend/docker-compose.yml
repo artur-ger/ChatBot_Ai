@@ -58,6 +58,7 @@ services:
     volumes:
       - huggingface_cache:/app/.cache/huggingface
       - uploads_data:/app/data/uploads
+      - ./app/static:/app/app/static:ro
     depends_on:
       postgres:
         condition: service_healthy

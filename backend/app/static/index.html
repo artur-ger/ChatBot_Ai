@@ -3,42 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ИИ чат поддержки</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260519-split" />
+    <title>Чат поддержки — ChatBot AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css?v=20260530-tabs" />
   </head>
   <body>
     <div class="bg"></div>
-    <div class="app app-narrow">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">ChatBot AI</p>
-          <h1>Чат поддержки</h1>
-        </div>
-        <a id="adminLink" class="topbar-link hidden" href="/admin">Админ-панель</a>
-      </header>
+    <div class="page-shell page-shell--chat">
+      <div class="app app-narrow app-centered">
+        <header class="topbar">
+          <div class="topbar-brand">
+            <p class="eyebrow">ChatBot AI</p>
+            <h1>Чат поддержки</h1>
+          </div>
+          <div class="topbar-actions">
+            <a id="adminLink" class="topbar-link hidden" href="/admin">Админ-панель</a>
+          </div>
+        </header>
 
-      <main class="layout layout-single">
-        <section class="card chat-card">
-          <div class="section-head">
-            <h2>Чат</h2>
-          </div>
-          <p id="chatSessionHint" class="muted chat-session-hint"></p>
-          <div id="messages" class="messages messages-tall"></div>
-          <form id="chatForm" class="chat-form">
-            <input id="chatInput" type="text" placeholder="Введите вопрос..." required minlength="2" />
-            <button type="submit">Отправить</button>
-          </form>
-          <div class="actions">
-            <button id="newChatBtn" type="button" class="btn-secondary">Новый диалог</button>
-            <button id="resetChatBtn" type="button" class="danger">Очистить историю</button>
-          </div>
-        </section>
-      </main>
+        <main class="layout layout-single">
+          <section class="card chat-card">
+            <div class="section-head">
+              <h2>Диалог</h2>
+            </div>
+            <p id="chatSessionHint" class="muted chat-session-hint"></p>
+            <div id="messages" class="messages messages-tall" role="log" aria-live="polite"></div>
+            <form id="chatForm" class="chat-form">
+              <input
+                id="chatInput"
+                type="text"
+                placeholder="Задайте вопрос по продукту или услуге…"
+                required
+                minlength="2"
+                maxlength="3000"
+                autocomplete="off"
+              />
+              <button id="chatSubmitBtn" type="submit">Отправить</button>
+            </form>
+            <div class="actions">
+              <button id="newChatBtn" type="button" class="btn-secondary">Новый диалог</button>
+              <button id="resetChatBtn" type="button" class="danger">Очистить историю</button>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="page-footer">
+        Сервис поддержки на базе <strong>ChatBot AI</strong>
+      </footer>
     </div>
 
-    <div id="toast" class="toast hidden"></div>
+    <div id="toast" class="toast hidden" role="status"></div>
 
-    <script src="/static/common.js?v=20260526-rollout"></script>
-    <script src="/static/chat.js?v=20260528-no-sources"></script>
+    <script src="/static/common.js?v=20260530-tabs"></script>
+    <script src="/static/chat.js?v=20260530-tabs"></script>
   </body>
 </html>

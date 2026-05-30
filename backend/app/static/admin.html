@@ -4,180 +4,251 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Админ-панель — ChatBot AI</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260526-llm-form" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css?v=20260530-tabs" />
   </head>
   <body>
     <div class="bg"></div>
-    <div class="app">
-      <section id="loginScreen" class="card admin-login-card">
-        <h2>Вход в админ-панель</h2>
-        <p class="muted">ADMIN_USERNAME / ADMIN_PASSWORD из .env</p>
-        <div class="stack">
-          <label for="adminUsernameInput">Admin username</label>
-          <input id="adminUsernameInput" type="text" placeholder="admin" autocomplete="username" />
-          <label for="adminPasswordInput">Admin password</label>
-          <input id="adminPasswordInput" type="password" placeholder="password" autocomplete="current-password" />
-          <button id="loginBtn" type="button">Войти</button>
+    <div class="page-shell">
+      <div class="app">
+        <section id="loginScreen" class="card admin-login-card">
+          <h2>Вход в админ-панель</h2>
+          <p class="muted">Учётные данные из <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code></p>
+          <div class="stack">
+            <label for="adminUsernameInput">Логин</label>
+            <input id="adminUsernameInput" type="text" placeholder="admin" autocomplete="username" />
+            <label for="adminPasswordInput">Пароль</label>
+            <input
+              id="adminPasswordInput"
+              type="password"
+              placeholder="••••••••"
+              autocomplete="current-password"
+            />
+            <button id="loginBtn" type="button">Войти</button>
+          </div>
+          <p class="muted" style="margin-top: 16px"><a href="/">← К чату</a></p>
+        </section>
+
+        <div id="adminPanel" class="hidden">
+          <header class="topbar">
+            <div class="topbar-brand">
+              <p class="eyebrow">ChatBot AI</p>
+              <h1>Админ-панель</h1>
+              <p id="systemInfo" class="muted"></p>
+              <p id="llmWarning" class="admin-banner hidden"></p>
+              <p id="kbIndexWarning" class="admin-banner admin-banner-warn hidden"></p>
+            </div>
+            <div class="topbar-actions">
+              <a class="topbar-link" href="/">Чат</a>
+              <button id="logoutBtn" type="button" class="btn-secondary">Выйти</button>
+            </div>
+          </header>
+
+          <nav class="admin-nav" role="tablist" aria-label="Разделы админки">
+            <button
+              type="button"
+              class="admin-nav-btn is-active"
+              role="tab"
+              aria-selected="true"
+              data-admin-tab="prompt"
+            >
+              Промпт
+            </button>
+            <button
+              type="button"
+              class="admin-nav-btn"
+              role="tab"
+              aria-selected="false"
+              data-admin-tab="llm"
+            >
+              Модели
+            </button>
+            <button
+              type="button"
+              class="admin-nav-btn"
+              role="tab"
+              aria-selected="false"
+              data-admin-tab="kb"
+            >
+              База знаний
+            </button>
+          </nav>
+
+          <div class="admin-tab-panels">
+            <section id="adminTabPrompt" class="admin-tab-panel is-active" role="tabpanel">
+              <div class="card">
+                <div class="section-head">
+                  <h2>Промпт RAG</h2>
+                  <button id="resetPromptBtn" type="button" class="btn-secondary">По умолчанию</button>
+                </div>
+                <p class="muted">Системная инструкция. История и контекст добавляются пайплайном.</p>
+                <form id="promptForm" class="stack admin-form-block">
+                  <label for="systemInstructionInput">Системная инструкция</label>
+                  <textarea
+                    id="systemInstructionInput"
+                    rows="10"
+                    required
+                    placeholder="Ты ассистент поддержки..."
+                  ></textarea>
+                  <p id="promptMeta" class="muted"></p>
+                  <div class="actions">
+                    <button type="submit">Сохранить промпт</button>
+                  </div>
+                  <p id="promptFormResult" class="muted"></p>
+                </form>
+              </div>
+            </section>
+
+            <section id="adminTabLlm" class="admin-tab-panel" role="tabpanel" hidden>
+              <div class="card">
+                <div class="section-head">
+                  <h2>Интеграции LLM</h2>
+                  <button id="refreshLlmBtn" type="button" class="btn-secondary">Обновить</button>
+                </div>
+                <div class="table-wrap">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Название</th>
+                        <th>Провайдер</th>
+                        <th>Модель</th>
+                        <th>Ключ</th>
+                        <th>Вкл.</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="llmTable"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card">
+                <form id="llmForm" class="stack admin-form-block">
+                  <h3>Добавить / изменить интеграцию</h3>
+                  <input id="llmId" type="hidden" />
+                  <label for="llmName">Название</label>
+                  <input id="llmName" type="text" required />
+                  <label for="llmProvider">Провайдер</label>
+                  <select id="llmProvider" required>
+                    <option value="openai_compatible">OpenAI-compatible</option>
+                    <option value="gigachat">GigaChat</option>
+                    <option value="rule_based">rule_based (dev)</option>
+                  </select>
+                  <label for="llmBaseUrl">Base URL</label>
+                  <input id="llmBaseUrl" type="url" placeholder="https://api.openai.com/v1" />
+                  <label for="llmApiKey">API key / OAuth Basic</label>
+                  <input id="llmApiKey" type="password" autocomplete="new-password" placeholder="Basic …" />
+                  <p id="llmModelsHint" class="muted llm-models-hint"></p>
+                  <label for="llmModel">Модель</label>
+                  <div class="model-picker-row">
+                    <select id="llmModel" required>
+                      <option value="">—</option>
+                    </select>
+                    <button type="button" id="llmRefreshModelsBtn" class="btn-secondary">Загрузить модели</button>
+                  </div>
+                  <label class="checkbox-row">
+                    <input id="llmEnabled" type="checkbox" checked />
+                    Включена
+                  </label>
+                  <label class="checkbox-row">
+                    <input id="llmActivate" type="checkbox" />
+                    Сделать активной после сохранения
+                  </label>
+                  <div class="actions">
+                    <button type="submit">Сохранить</button>
+                    <button id="llmFormResetBtn" type="button" class="btn-secondary">Очистить форму</button>
+                  </div>
+                  <p id="llmFormResult" class="muted"></p>
+                </form>
+              </div>
+            </section>
+
+            <section id="adminTabKb" class="admin-tab-panel" role="tabpanel" hidden>
+              <div class="card upload-card">
+                <div class="section-head">
+                  <h2>Загрузка базы знаний</h2>
+                </div>
+                <form id="uploadForm" class="stack">
+                  <label for="fileInput">Файл (.txt, .md, .pdf, .docx, .zip)</label>
+                  <input id="fileInput" type="file" accept=".txt,.md,.markdown,.pdf,.docx,.zip" required />
+                  <button type="submit">Загрузить документ</button>
+                </form>
+                <p id="uploadResult" class="muted"></p>
+              </div>
+
+              <div class="card docs-card">
+                <div class="section-head">
+                  <h2>Документы</h2>
+                  <button id="refreshDocsBtn" type="button" class="btn-secondary">Обновить</button>
+                </div>
+                <div class="table-wrap">
+                  <table class="data-table docs-table">
+                    <colgroup>
+                      <col class="col-id" />
+                      <col class="col-filename" />
+                      <col class="col-type" />
+                      <col class="col-status" />
+                      <col class="col-actions" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Файл</th>
+                        <th>Тип</th>
+                        <th>Статус</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="docsTable"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card tasks-card">
+                <div class="section-head">
+                  <h2>Задачи индексации</h2>
+                  <button id="refreshTasksBtn" type="button" class="btn-secondary">Обновить</button>
+                </div>
+                <div class="table-wrap">
+                  <table class="data-table tasks-table">
+                    <colgroup>
+                      <col class="col-id" />
+                      <col class="col-id" />
+                      <col class="col-status" />
+                      <col class="col-type" />
+                      <col class="col-actions-wide" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>Task ID</th>
+                        <th>Document ID</th>
+                        <th>Статус</th>
+                        <th>Celery</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="tasksTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
-        <p class="muted"><a href="/">← К чату</a></p>
-      </section>
-
-      <div id="adminPanel" class="hidden">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">ChatBot AI</p>
-            <h1>Админ-панель</h1>
-            <p id="systemInfo" class="muted"></p>
-            <p id="llmWarning" class="admin-banner hidden"></p>
-            <p id="kbIndexWarning" class="admin-banner admin-banner-warn hidden"></p>
-          </div>
-          <div class="topbar-actions">
-            <a class="topbar-link" href="/">Чат</a>
-            <button id="logoutBtn" type="button" class="btn-secondary">Выйти</button>
-          </div>
-        </header>
-
-        <main class="layout layout-admin">
-          <section class="card">
-            <div class="section-head">
-              <h2>Промпт RAG</h2>
-              <button id="resetPromptBtn" type="button" class="btn-secondary">По умолчанию</button>
-            </div>
-            <p class="muted">Системная инструкция. История и контекст добавляются пайплайном.</p>
-            <form id="promptForm" class="stack admin-form-block">
-              <label for="systemInstructionInput">Системная инструкция</label>
-              <textarea
-                id="systemInstructionInput"
-                rows="7"
-                required
-                placeholder="Ты ассистент поддержки..."
-              ></textarea>
-              <p id="promptMeta" class="muted"></p>
-              <div class="actions">
-                <button type="submit">Сохранить промпт</button>
-              </div>
-              <p id="promptFormResult" class="muted"></p>
-            </form>
-          </section>
-
-          <section class="card">
-            <div class="section-head">
-              <h2>Интеграции LLM</h2>
-              <button id="refreshLlmBtn" type="button" class="btn-secondary">Обновить</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Название</th>
-                    <th>Провайдер</th>
-                    <th>Модель</th>
-                    <th>Ключ</th>
-                    <th>Вкл.</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="llmTable"></tbody>
-              </table>
-            </div>
-            <form id="llmForm" class="stack admin-form-block">
-              <h3>Добавить / изменить интеграцию</h3>
-              <input id="llmId" type="hidden" />
-              <label for="llmName">Название</label>
-              <input id="llmName" type="text" required />
-              <label for="llmProvider">Провайдер</label>
-              <select id="llmProvider" required>
-                <option value="openai_compatible">OpenAI-compatible</option>
-                <option value="gigachat">GigaChat</option>
-                <option value="rule_based">rule_based (dev)</option>
-              </select>
-              <label for="llmBaseUrl">Base URL</label>
-              <input id="llmBaseUrl" type="url" placeholder="https://api.openai.com/v1" />
-              <label for="llmApiKey">API key / OAuth Basic</label>
-              <input id="llmApiKey" type="password" autocomplete="new-password" placeholder="Basic …" />
-              <p id="llmModelsHint" class="muted llm-models-hint"></p>
-              <label for="llmModel">Модель</label>
-              <div class="model-picker-row">
-                <select id="llmModel" required>
-                  <option value="">—</option>
-                </select>
-                <button type="button" id="llmRefreshModelsBtn" class="btn-secondary">Загрузить модели</button>
-              </div>
-              <label class="checkbox-row">
-                <input id="llmEnabled" type="checkbox" checked />
-                Включена
-              </label>
-              <label class="checkbox-row">
-                <input id="llmActivate" type="checkbox" />
-                Сделать активной после сохранения
-              </label>
-              <div class="actions">
-                <button type="submit">Сохранить</button>
-                <button id="llmFormResetBtn" type="button" class="btn-secondary">Очистить форму</button>
-              </div>
-              <p id="llmFormResult" class="muted"></p>
-            </form>
-          </section>
-
-          <section class="card upload-card">
-            <div class="section-head">
-              <h2>Загрузка базы знаний</h2>
-            </div>
-            <form id="uploadForm" class="stack">
-              <input id="fileInput" type="file" accept=".txt,.md,.markdown,.pdf,.docx,.zip" required />
-              <button type="submit">Загрузить документ / KB archive</button>
-            </form>
-            <p id="uploadResult" class="muted"></p>
-          </section>
-
-          <section class="card docs-card">
-            <div class="section-head">
-              <h2>Документы</h2>
-              <button id="refreshDocsBtn" type="button" class="btn-secondary">Обновить</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Файл</th>
-                    <th>Тип</th>
-                    <th>Статус</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="docsTable"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="card tasks-card">
-            <div class="section-head">
-              <h2>Задачи индексации</h2>
-              <button id="refreshTasksBtn" type="button" class="btn-secondary">Обновить</button>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Task ID</th>
-                    <th>Document ID</th>
-                    <th>Статус</th>
-                    <th>Celery</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="tasksTable"></tbody>
-              </table>
-            </div>
-          </section>
-        </main>
       </div>
+
+      <footer class="page-footer">
+        Панель управления <strong>ChatBot AI</strong>
+      </footer>
     </div>
 
-    <div id="toast" class="toast hidden"></div>
+    <div id="toast" class="toast hidden" role="status"></div>
 
-    <script src="/static/common.js?v=20260526-admin-auth"></script>
-    <script src="/static/admin.js?v=20260527-2"></script>
+    <script src="/static/common.js?v=20260530-tabs"></script>
+    <script src="/static/admin.js?v=20260530-tabs"></script>
   </body>
 </html>
